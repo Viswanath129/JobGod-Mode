@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { updateUser } from "@/lib/store";
 import { promises as fs } from "fs";
 import path from "path";
-import pdf from "pdf-parse";
-import mammoth from "mammoth";
 
 export async function POST(req: NextRequest) {
   try {
@@ -18,9 +16,12 @@ export async function POST(req: NextRequest) {
     let text = "";
 
     if (file.name.endsWith(".pdf")) {
-      const data = await pdf(buffer);
+      // Dynamic require to bypass Turbopack ESM resolution issues
+      const pdfParse = require("pdf-parse/lib/pdf-parse");
+      const data = await pdfParse(buffer);
       text = data.text;
     } else if (file.name.endsWith(".docx")) {
+      const mammoth = require("mammoth");
       const result = await mammoth.extractRawText({ buffer });
       text = result.value;
     } else {
