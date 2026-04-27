@@ -3,17 +3,13 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
-  Zap,
   Search,
   FileText,
   Send,
   BarChart3,
-  Settings,
-  Briefcase,
-  Trophy,
   Brain,
   Shield,
-  TrendingUp,
+  Trophy,
   Sparkles,
   ChevronRight,
   ExternalLink,

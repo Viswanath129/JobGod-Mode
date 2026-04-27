@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
     } else {
       return NextResponse.json({ error: "Application failed. Check logs for details." }, { status: 500 });
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Apply error:", error);
     return NextResponse.json({ error: "An unexpected error occurred during application. Please check server logs." }, { status: 500 });
   }

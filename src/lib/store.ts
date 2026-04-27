@@ -207,7 +207,7 @@ export async function getJobs(filters?: {
     
     const { data, error } = await query;
     if (!error && data) {
-      return data.map((j: any) => ({
+      return (data as Array<Job & { job_scores?: JobScore[] }>).map((j) => ({
         ...j,
         score: j.job_scores?.[0]
       }));

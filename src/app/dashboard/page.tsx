@@ -4,15 +4,12 @@ import { useEffect, useState } from "react";
 import {
   Briefcase,
   Send,
-  TrendingUp,
   Trophy,
   Sparkles,
   Zap,
   Target,
-  BarChart3,
   Search,
   ArrowUpRight,
-  Clock,
   Bot,
   RefreshCw,
 } from "lucide-react";
