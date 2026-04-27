@@ -6,7 +6,7 @@ import { getJobs, addJobs } from "@/lib/store";
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const jobs = getJobs({
+    const jobs = await getJobs({
       status: searchParams.get("status") || undefined,
       source: searchParams.get("source") || undefined,
       minScore: searchParams.get("minScore")
@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const newJobs = addJobs(Array.isArray(body) ? body : [body]);
+    const newJobs = await addJobs(Array.isArray(body) ? body : [body]);
     return NextResponse.json({ added: newJobs.length, jobs: newJobs });
   } catch (error) {
     return NextResponse.json({ error: "Failed to add jobs" }, { status: 500 });

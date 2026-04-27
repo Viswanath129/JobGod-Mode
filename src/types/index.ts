@@ -139,9 +139,20 @@ export interface DashboardStats {
   topScore: number;
 }
 
+export interface UserProfile {
+  name: string;
+  email: string;
+  phone?: string;
+  linkedin?: string;
+  github?: string;
+  portfolio?: string;
+  resumeMd: string;
+  preferences: UserPreferences;
+}
+
 export interface AgentLog {
   id: string;
-  agentType: string;
+  agentType: "search" | "score" | "apply" | "resume" | "system";
   action: string;
   details: Record<string, unknown>;
   status: "success" | "error";

@@ -7,10 +7,10 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const query = body.query || "AI Engineer";
-    const preferences = getPreferences();
+    const preferences = await getPreferences();
     const locations = body.locations || preferences.preferredLocations;
 
-    addLog({
+    await addLog({
       id: crypto.randomUUID(),
       agentType: "search",
       action: `Searching: "${query}" in ${locations.join(", ")}`,
@@ -20,9 +20,9 @@ export async function POST(req: NextRequest) {
     });
 
     const rawJobs = await searchAllSources(query, locations);
-    const added = addJobs(rawJobs);
+    const added = await addJobs(rawJobs);
 
-    addLog({
+    await addLog({
       id: crypto.randomUUID(),
       agentType: "search",
       action: `Found ${rawJobs.length} jobs, added ${added.length} new`,

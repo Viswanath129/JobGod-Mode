@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Update the base resume in the store
-    updateUser({ resumeMd: text });
+    await updateUser({ resumeMd: text });
 
     return NextResponse.json({
       success: true,

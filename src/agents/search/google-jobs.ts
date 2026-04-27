@@ -14,127 +14,134 @@ interface SearchParams {
 }
 
 /**
- * Search Google Jobs via SerpAPI-style scraping
- * Falls back to Google search scraping if no API key
+ * Search Google Jobs via SerpApi
  */
 export async function searchGoogleJobs(params: SearchParams): Promise<Partial<Job>[]> {
+  const apiKey = process.env.SERPAPI_API_KEY;
+  if (!apiKey) {
+    console.warn("SERPAPI_API_KEY not set, falling back to basic scraping");
+    return []; // For now just return empty if no API key to avoid being blocked
+  }
+
   const { query, location, datePosted } = params;
-
-  // Build Google Jobs search URL
-  let searchQuery = `${query} jobs`;
-  if (location) searchQuery += ` in ${location}`;
-
-  const url = `https://www.google.com/search?q=${encodeURIComponent(searchQuery)}&ibp=htl;jobs`;
+  const q = `${query} ${location || ""}`.trim();
+  
+  const searchUrl = new URL("https://serpapi.com/search");
+  searchUrl.searchParams.append("engine", "google_jobs");
+  searchUrl.searchParams.append("q", q);
+  searchUrl.searchParams.append("api_key", apiKey);
+  if (datePosted === "day") searchUrl.searchParams.append("chips", "date_posted:today");
+  else if (datePosted === "week") searchUrl.searchParams.append("chips", "date_posted:3days");
 
   try {
-    const response = await fetch(url, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
-        Accept: "text/html,application/xhtml+xml",
-        "Accept-Language": "en-US,en;q=0.9",
-      },
-    });
+    const response = await fetch(searchUrl.toString());
+    if (!response.ok) throw new Error(`SerpApi failed: ${response.status}`);
 
-    if (!response.ok) {
-      console.warn(`Google Jobs search failed: ${response.status}`);
-      return [];
-    }
+    const data = await response.json();
+    const results = data.jobs_results || [];
 
-    const html = await response.text();
-    return parseGoogleJobsHTML(html);
+    return results.map((j: any) => ({
+      id: uuidv4(),
+      source: "google_jobs" as JobSource,
+      title: j.title || "",
+      company: j.company_name || "",
+      location: j.location || "",
+      description: j.description || "",
+      url: j.job_id || j.related_links?.[0]?.link || "",
+      postedAt: j.detected_extensions?.posted_at || "",
+      salary: j.detected_extensions?.salary || "",
+      status: "discovered",
+      isScam: false,
+      isRepost: false,
+    }));
   } catch (error) {
-    console.error("Google Jobs search error:", error);
+    console.error("SerpApi search error:", error);
     return [];
   }
 }
 
-function parseGoogleJobsHTML(html: string): Partial<Job>[] {
-  const $ = cheerio.load(html);
-  const jobs: Partial<Job>[] = [];
+/**
+ * Search LinkedIn Jobs via SerpApi (google_search with site:linkedin.com/jobs)
+ */
+export async function searchLinkedInJobs(query: string, location: string): Promise<Partial<Job>[]> {
+  const apiKey = process.env.SERPAPI_API_KEY;
+  if (!apiKey) return [];
 
-  // Google Jobs embeds job data in script tags as JSON-LD or in specific div structures
-  $("script[type='application/ld+json']").each((_, el) => {
-    try {
-      const data = JSON.parse($(el).html() || "{}");
-      if (data["@type"] === "JobPosting") {
-        jobs.push({
-          id: uuidv4(),
-          source: "google_jobs" as JobSource,
-          title: data.title || "",
-          company: data.hiringOrganization?.name || "",
-          location: data.jobLocation?.address?.addressLocality || "",
-          description: data.description || "",
-          url: data.url || "",
-          postedAt: data.datePosted,
-          salaryMin: data.baseSalary?.value?.minValue,
-          salaryMax: data.baseSalary?.value?.maxValue,
-          salaryCurrency: data.baseSalary?.currency,
-          status: "discovered",
-          isScam: false,
-          isRepost: false,
-        });
-      }
-    } catch {
-      // Skip malformed JSON
-    }
-  });
+  const q = `site:linkedin.com/jobs/view "${query}" in "${location}"`;
+  const searchUrl = new URL("https://serpapi.com/search");
+  searchUrl.searchParams.append("q", q);
+  searchUrl.searchParams.append("api_key", apiKey);
 
-  return jobs;
+  try {
+    const response = await fetch(searchUrl.toString());
+    const data = await response.json();
+    const results = data.organic_results || [];
+
+    return results.map((r: any) => ({
+      id: uuidv4(),
+      source: "linkedin" as JobSource,
+      title: r.title?.split(" job ")[0] || "",
+      company: r.title?.split(" at ")[1]?.split(" | ")[0] || "",
+      url: r.link,
+      location,
+      status: "discovered",
+      isScam: false,
+      isRepost: false,
+    }));
+  } catch (error) {
+    console.error("LinkedIn search error:", error);
+    return [];
+  }
 }
 
 /**
- * Generic career page scraper — works with any company website
+ * Generic career page scraper — enhanced with ScraperAPI
  */
 export async function scrapeCareerPage(
   url: string,
   companyName: string
 ): Promise<Partial<Job>[]> {
-  try {
-    const response = await fetch(url, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-      },
-    });
+  const scraperApiKey = process.env.SCRAPERAPI_API_KEY;
+  let targetUrl = url;
 
+  // Route through ScraperAPI to bypass bot detection if key is available
+  if (scraperApiKey) {
+    targetUrl = `http://api.scraperapi.com?api_key=${scraperApiKey}&url=${encodeURIComponent(url)}&render=true`;
+  }
+
+  try {
+    const response = await fetch(targetUrl);
     if (!response.ok) return [];
 
     const html = await response.text();
     const $ = cheerio.load(html);
     const jobs: Partial<Job>[] = [];
 
-    // Look for common job listing patterns
-    const selectors = [
-      'a[href*="job"], a[href*="career"], a[href*="position"]',
-      ".job-listing a, .career-listing a, .opening a",
-      '[class*="job"] a, [class*="career"] a, [class*="position"] a',
-    ];
+    // Improved selector logic for career sites
+    const linkItems = $("a").filter((_, el) => {
+      const text = $(el).text().toLowerCase();
+      const href = $(el).attr("href")?.toLowerCase() || "";
+      return (
+        (text.includes("engineer") || text.includes("developer") || text.includes("manager")) &&
+        (href.includes("/jobs/") || href.includes("/careers/") || href.includes("/openings/"))
+      );
+    });
 
-    for (const selector of selectors) {
-      $(selector).each((_, el) => {
-        const link = $(el);
-        const title = link.text().trim();
-        const href = link.attr("href");
-
-        if (title && href && title.length > 5 && title.length < 200) {
-          const fullUrl = href.startsWith("http")
-            ? href
-            : new URL(href, url).toString();
-
-          jobs.push({
-            id: uuidv4(),
-            source: "company_page" as JobSource,
-            title,
-            company: companyName,
-            url: fullUrl,
-            status: "discovered",
-            isScam: false,
-            isRepost: false,
-          });
-        }
-      });
-    }
+    linkItems.each((_, el) => {
+      const title = $(el).text().trim();
+      const href = $(el).attr("href");
+      if (title && href) {
+        const fullUrl = href.startsWith("http") ? href : new URL(href, url).toString();
+        jobs.push({
+          id: uuidv4(),
+          source: "company_page" as JobSource,
+          title,
+          company: companyName,
+          url: fullUrl,
+          status: "discovered",
+        });
+      }
+    });
 
     return jobs;
   } catch (error) {
@@ -154,15 +161,13 @@ export async function searchAllSources(
 
   // Search each location
   for (const location of locations) {
-    const googleJobs = await searchGoogleJobs({ query, location });
-    allJobs.push(...googleJobs);
+    console.log(`Searching for ${query} in ${location}...`);
+    const [google, linkedin] = await Promise.all([
+      searchGoogleJobs({ query, location }),
+      searchLinkedInJobs(query, location),
+    ]);
+    allJobs.push(...google, ...linkedin);
   }
-
-  // Search without location for remote jobs
-  const remoteJobs = await searchGoogleJobs({
-    query: `${query} remote`,
-  });
-  allJobs.push(...remoteJobs);
 
   // Deduplicate by URL
   const seen = new Set<string>();

@@ -12,13 +12,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "jobId required" }, { status: 400 });
     }
 
-    const job = getJob(jobId);
+    const job = await getJob(jobId);
     if (!job) {
       return NextResponse.json({ error: "Job not found" }, { status: 404 });
     }
 
-    const preferences = getPreferences();
-    const user = getUser();
+    const preferences = await getPreferences();
+    const user = await getUser();
 
     let result;
 
