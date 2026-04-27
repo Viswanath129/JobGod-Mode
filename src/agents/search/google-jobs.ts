@@ -13,6 +13,24 @@ interface SearchParams {
   datePosted?: "day" | "week" | "month";
 }
 
+interface SerpApiJobResult {
+  title?: string;
+  company_name?: string;
+  location?: string;
+  description?: string;
+  job_id?: string;
+  related_links?: { link: string }[];
+  detected_extensions?: {
+    posted_at?: string;
+    salary?: string;
+  };
+}
+
+interface SerpApiOrganicResult {
+  title?: string;
+  link: string;
+}
+
 /**
  * Search Google Jobs via SerpApi
  */
@@ -40,7 +58,7 @@ export async function searchGoogleJobs(params: SearchParams): Promise<Partial<Jo
     const data = await response.json();
     const results = data.jobs_results || [];
 
-    return results.map((j: any) => ({
+    return results.map((j: SerpApiJobResult) => ({
       id: uuidv4(),
       source: "google_jobs" as JobSource,
       title: j.title || "",
@@ -79,7 +97,7 @@ export async function searchLinkedInJobs(query: string, location: string): Promi
     const data = await response.json();
     const results = data.organic_results || [];
 
-    return results.map((r: any) => ({
+    return results.map((r: SerpApiOrganicResult) => ({
       id: uuidv4(),
       source: "linkedin" as JobSource,
       title: r.title?.split(" job ")[0] || "",

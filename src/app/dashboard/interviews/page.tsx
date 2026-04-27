@@ -1,6 +1,6 @@
 "use client";
 
-import { Brain, MessageSquare, Code, Building2, Route, BookOpen } from "lucide-react";
+import { Brain, MessageSquare, Code, Building2 } from "lucide-react";
 
 export default function InterviewsPage() {
   return (

@@ -1,12 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { FileText, Download, Eye, Trash2, Sparkles, Clock } from "lucide-react";
-import type { TailoredResume } from "@/types";
+import { FileText, Download, Eye, Sparkles, Clock } from "lucide-react";
+import type { TailoredResume, UserProfile } from "@/types";
 
 export default function ResumesPage() {
-  const [resumes, setResumes] = useState<TailoredResume[]>([]);
-  const [user, setUser] = useState<any>(null);
+  const [resumes] = useState<TailoredResume[]>([]);
+  const [user, setUser] = useState<UserProfile | null>(null);
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
@@ -21,6 +21,7 @@ export default function ResumesPage() {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchUserData();
   }, []);
 
@@ -48,7 +49,7 @@ export default function ResumesPage() {
       } else {
         setMessage({ type: "error", text: data.error || "Failed to upload resume" });
       }
-    } catch (err) {
+    } catch {
       setMessage({ type: "error", text: "An error occurred during upload." });
     } finally {
       setUploading(false);

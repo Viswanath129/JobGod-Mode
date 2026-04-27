@@ -30,11 +30,6 @@ const WORK_MODES = [
   "Remote", "Hybrid", "Onsite", "Full-time", "Part-time", "Internship", "Contract",
 ];
 
-const INDUSTRIES = [
-  "AI", "Machine Learning", "Computer Vision", "Embedded Systems",
-  "Robotics", "Software", "Research", "Semiconductor", "Cloud", "Data Science",
-];
-
 const SOURCES = [
   { value: "google_jobs", label: "Google Jobs" },
   { value: "linkedin", label: "LinkedIn" },
@@ -67,6 +62,7 @@ export default function JobsPage() {
   }, [minScore]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchJobs();
   }, [fetchJobs]);
 

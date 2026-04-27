@@ -3,7 +3,7 @@
 // ============================================
 
 import { aiJSON } from "@/lib/ai";
-import type { Job, JobScore, UserPreferences } from "@/types";
+import type { Job, UserPreferences } from "@/types";
 
 interface ScoreResult {
   totalScore: number;

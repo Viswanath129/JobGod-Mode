@@ -62,13 +62,13 @@ export class AutoApplyAgent {
       }
 
       return success;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("[AutoApply] Error:", error);
       await addLog({
         id: crypto.randomUUID(),
         agentType: "apply",
         action: `Failed to apply to ${this.job.company}`,
-        details: { error: error.message },
+        details: { error: error instanceof Error ? error.message : String(error) },
         status: "error",
         createdAt: new Date().toISOString(),
       });
@@ -78,22 +78,23 @@ export class AutoApplyAgent {
     }
   }
 
-  private async fillForm(page: Page, resume: string): Promise<boolean> {
+  private async fillForm(page: Page, _resume: string): Promise<boolean> {
     // 1. Detect all inputs and their labels
     const fields = await page.evaluate(() => {
       const inputs = Array.from(document.querySelectorAll("input, textarea, select"));
-      return inputs.map((input: any) => {
-        const label = document.querySelector(`label[for="${input.id}"]`)?.textContent || 
-                      input.placeholder || 
-                      input.name || 
-                      input.ariaLabel || 
+      return inputs.map((input) => {
+        const el = input as HTMLInputElement;
+        const label = document.querySelector(`label[for="${el.id}"]`)?.textContent || 
+                      el.placeholder || 
+                      el.name || 
+                      el.ariaLabel || 
                       "";
         return {
-          id: input.id,
-          name: input.name,
-          type: input.type,
+          id: el.id,
+          name: el.name,
+          type: el.type,
           label: label.trim(),
-          selector: input.id ? `#${input.id}` : `[name="${input.name}"]`
+          selector: el.id ? `#${el.id}` : `[name="${el.name}"]`
         };
       });
     });

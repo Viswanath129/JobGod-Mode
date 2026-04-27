@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
       message: `God Mode finished. Discovered ${newJobs.length} new jobs, applied to ${appliedCount}.` 
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("God Mode error:", error);
     return NextResponse.json({ error: "An unexpected error occurred during God Mode execution. Please check server logs." }, { status: 500 });
   }

@@ -9,7 +9,6 @@ import {
   FileText,
   BarChart3,
   Settings,
-  Briefcase,
   Trophy,
   Brain,
   Zap,

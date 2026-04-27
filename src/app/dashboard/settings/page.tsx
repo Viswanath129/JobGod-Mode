@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Settings as SettingsIcon, Save, MapPin, DollarSign, Briefcase, Code, Building2, Shield, Bell } from "lucide-react";
+import { Save, MapPin, DollarSign, Code, Shield } from "lucide-react";
 import type { UserPreferences } from "@/types";
 
 export default function SettingsPage() {

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Send, Building2, MapPin, Clock, ExternalLink, CheckCircle, XCircle, Calendar, Bot } from "lucide-react";
+import { useState } from "react";
+import { Send, Building2, Clock, Bot } from "lucide-react";
 import type { Application } from "@/types";
 import { formatRelativeTime } from "@/lib/utils";
 
@@ -17,12 +17,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function AppliedPage() {
-  const [applications, setApplications] = useState<Application[]>([]);
-
-  useEffect(() => {
-    // Applications would be fetched from API
-    setApplications([]);
-  }, []);
+  const [applications] = useState<Application[]>([]);
 
   return (
     <div>
