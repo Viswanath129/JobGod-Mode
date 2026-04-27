@@ -16,12 +16,12 @@ export async function POST(req: NextRequest) {
     let text = "";
 
     if (file.name.endsWith(".pdf")) {
-      // Dynamic require to bypass Turbopack ESM resolution issues
-      const pdfParse = require("pdf-parse/lib/pdf-parse");
+      const pdfParseModule = await import("pdf-parse/lib/pdf-parse");
+      const pdfParse = pdfParseModule.default;
       const data = await pdfParse(buffer);
       text = data.text;
     } else if (file.name.endsWith(".docx")) {
-      const mammoth = require("mammoth");
+      const mammoth = await import("mammoth");
       const result = await mammoth.extractRawText({ buffer });
       text = result.value;
     } else {
@@ -58,10 +58,11 @@ export async function POST(req: NextRequest) {
       message: "Resume uploaded and parsed successfully.",
       preview: text.substring(0, 500) + "...",
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Upload error:", error);
+    const message = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json(
-      { error: "Failed to process resume: " + (error?.message || "Unknown error") },
+      { error: "Failed to process resume: " + message },
       { status: 500 }
     );
   }

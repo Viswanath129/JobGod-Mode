@@ -130,6 +130,7 @@ export interface InterviewPrep {
 
 export interface DashboardStats {
   totalDiscovered: number;
+  totalScored: number;
   totalApplied: number;
   totalInterviews: number;
   totalOffers: number;
@@ -137,6 +138,14 @@ export interface DashboardStats {
   todayNewJobs: number;
   weekApplications: number;
   topScore: number;
+}
+
+export interface AnalyticsSnapshot {
+  stats: DashboardStats;
+  weeklyActivity: { day: string; jobs: number; applied: number }[];
+  scoreDistribution: { label: string; count: number; pct: number }[];
+  funnel: { label: string; value: number; color: string }[];
+  recentLogs: AgentLog[];
 }
 
 export interface UserProfile {

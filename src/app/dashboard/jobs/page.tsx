@@ -30,11 +30,6 @@ const WORK_MODES = [
   "Remote", "Hybrid", "Onsite", "Full-time", "Part-time", "Internship", "Contract",
 ];
 
-const INDUSTRIES = [
-  "AI", "Machine Learning", "Computer Vision", "Embedded Systems",
-  "Robotics", "Software", "Research", "Semiconductor", "Cloud", "Data Science",
-];
-
 const SOURCES = [
   { value: "google_jobs", label: "Google Jobs" },
   { value: "linkedin", label: "LinkedIn" },
@@ -48,6 +43,7 @@ export default function JobsPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(false);
   const [searching, setSearching] = useState(false);
+  const [scoringJobId, setScoringJobId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("AI Engineer");
   const [showFilters, setShowFilters] = useState(true);
   const [selectedLocations, setSelectedLocations] = useState<string[]>(["India", "Remote"]);
@@ -67,7 +63,16 @@ export default function JobsPage() {
   }, [minScore]);
 
   useEffect(() => {
-    fetchJobs();
+    const timeout = window.setTimeout(() => {
+      fetchJobs();
+    }, 0);
+
+    return () => window.clearTimeout(timeout);
+  }, [fetchJobs]);
+
+  useEffect(() => {
+    const interval = window.setInterval(fetchJobs, 15000);
+    return () => window.clearInterval(interval);
   }, [fetchJobs]);
 
   const handleSearch = async () => {
@@ -93,6 +98,7 @@ export default function JobsPage() {
   };
 
   const handleScore = async (jobId: string) => {
+    setScoringJobId(jobId);
     try {
       await fetch("/api/jobs/score", {
         method: "POST",
@@ -102,6 +108,8 @@ export default function JobsPage() {
       fetchJobs();
     } catch (e) {
       console.error(e);
+    } finally {
+      setScoringJobId(null);
     }
   };
 
@@ -451,9 +459,14 @@ export default function JobsPage() {
                       className="btn-ghost"
                       style={{ fontSize: "12px", padding: "8px 14px" }}
                       onClick={() => handleScore(job.id)}
+                      disabled={scoringJobId === job.id}
                     >
-                      <Star size={14} />
-                      Score
+                      {scoringJobId === job.id ? (
+                        <Loader2 size={14} className="animate-spin" />
+                      ) : (
+                        <Star size={14} />
+                      )}
+                      {scoringJobId === job.id ? "Scoring..." : "Score"}
                     </button>
                   )}
 
@@ -466,7 +479,11 @@ export default function JobsPage() {
                       className="btn-primary"
                       style={{ fontSize: "12px", padding: "8px 14px" }}
                       onClick={() => handleApply(job.id)}
-                      disabled={applying === job.id}
+                      disabled={
+                        applying === job.id ||
+                        !job.url ||
+                        (!job.url.startsWith("http://") && !job.url.startsWith("https://"))
+                      }
                     >
                       {applying === job.id ? (
                         <Loader2 size={14} className="animate-spin" />

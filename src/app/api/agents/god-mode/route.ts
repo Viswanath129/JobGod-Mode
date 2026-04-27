@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { getPreferences, getUser, addLog, getJobs, addJobs, addScore, updateJob } from "@/lib/store";
 import { searchAllSources } from "@/agents/search/google-jobs";
 import { scoreJob } from "@/agents/scorer";
 import { AutoApplyAgent } from "@/agents/auto-apply";
 
-export async function POST(req: NextRequest) {
+export async function POST() {
   try {
     const user = await getUser();
     const preferences = await getPreferences();
@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
       message: `God Mode finished. Discovered ${newJobs.length} new jobs, applied to ${appliedCount}.` 
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("God Mode error:", error);
     return NextResponse.json({ error: "An unexpected error occurred during God Mode execution. Please check server logs." }, { status: 500 });
   }

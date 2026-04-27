@@ -1,7 +1,15 @@
 import { chromium, Browser, Page } from "playwright";
 import { Job, UserProfile } from "@/types";
 import { generateTailoredResume, mapFormFields } from "@/lib/ai";
-import { addLog, updateJob } from "@/lib/store";
+import { addApplication, addLog, updateJob } from "@/lib/store";
+
+type FormField = {
+  id: string;
+  name: string;
+  type: string;
+  label: string;
+  selector: string;
+};
 
 export class AutoApplyAgent {
   private job: Job;
@@ -50,7 +58,17 @@ export class AutoApplyAgent {
       const success = await this.fillForm(page, tailoredResume);
 
       if (success) {
-        await updateJob(this.job.id, { status: "applied", updatedAt: new Date().toISOString() });
+        const appliedAt = new Date().toISOString();
+        await updateJob(this.job.id, { status: "applied", updatedAt: appliedAt });
+        await addApplication({
+          id: crypto.randomUUID(),
+          jobId: this.job.id,
+          resumeId: "base-resume",
+          status: "submitted",
+          appliedAt,
+          method: "auto",
+          notes: "Submitted by auto-apply agent.",
+        });
         await addLog({
           id: crypto.randomUUID(),
           agentType: "apply",
@@ -62,13 +80,14 @@ export class AutoApplyAgent {
       }
 
       return success;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("[AutoApply] Error:", error);
+      const message = error instanceof Error ? error.message : "Unknown error";
       await addLog({
         id: crypto.randomUUID(),
         agentType: "apply",
         action: `Failed to apply to ${this.job.company}`,
-        details: { error: error.message },
+        details: { error: message },
         status: "error",
         createdAt: new Date().toISOString(),
       });
@@ -78,28 +97,29 @@ export class AutoApplyAgent {
     }
   }
 
-  private async fillForm(page: Page, resume: string): Promise<boolean> {
+  private async fillForm(page: Page, _resume: string): Promise<boolean> {
     // 1. Detect all inputs and their labels
-    const fields = await page.evaluate(() => {
+    const fields = await page.evaluate<FormField[]>(() => {
       const inputs = Array.from(document.querySelectorAll("input, textarea, select"));
-      return inputs.map((input: any) => {
+      return inputs.map((input) => {
+        const element = input as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
         const label = document.querySelector(`label[for="${input.id}"]`)?.textContent || 
-                      input.placeholder || 
-                      input.name || 
-                      input.ariaLabel || 
+                      ("placeholder" in element ? element.placeholder : "") || 
+                      element.name || 
+                      element.getAttribute("aria-label") || 
                       "";
         return {
-          id: input.id,
-          name: input.name,
-          type: input.type,
+          id: element.id,
+          name: element.name,
+          type: element instanceof HTMLSelectElement ? "select" : element.type,
           label: label.trim(),
-          selector: input.id ? `#${input.id}` : `[name="${input.name}"]`
+          selector: element.id ? `#${element.id}` : `[name="${element.name}"]`
         };
       });
     });
 
     // 2. Map fields using AI
-    const fieldLabels = fields.map(f => f.label).filter(l => l.length > 0);
+    const fieldLabels = fields.map((field) => field.label).filter((label) => label.length > 0);
     const mapping = await mapFormFields(fieldLabels, this.user);
 
     // 3. Fill the fields

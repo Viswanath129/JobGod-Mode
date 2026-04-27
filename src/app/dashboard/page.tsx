@@ -1,34 +1,53 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import {
   Briefcase,
   Send,
-  TrendingUp,
   Trophy,
   Sparkles,
   Zap,
   Target,
-  BarChart3,
   Search,
   ArrowUpRight,
-  Clock,
   Bot,
   RefreshCw,
 } from "lucide-react";
-import type { DashboardStats } from "@/types";
+import type { AnalyticsSnapshot } from "@/types";
+import { formatRelativeTime } from "@/lib/utils";
 
 export default function DashboardPage() {
-  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [analytics, setAnalytics] = useState<AnalyticsSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
+  const [autoScoring, setAutoScoring] = useState(false);
 
   useEffect(() => {
-    fetch("/api/stats")
-      .then((r) => r.json())
-      .then(setStats)
-      .catch(console.error)
-      .finally(() => setLoading(false));
+    let mounted = true;
+
+    const loadAnalytics = async (keepSpinner = false) => {
+      if (keepSpinner) setLoading(true);
+      try {
+        const response = await fetch("/api/analytics", { cache: "no-store" });
+        const data = await response.json();
+        if (mounted) setAnalytics(data);
+      } catch (error) {
+        console.error(error);
+      } finally {
+        if (mounted && keepSpinner) setLoading(false);
+      }
+    };
+
+    loadAnalytics(true);
+    const interval = window.setInterval(() => loadAnalytics(false), 15000);
+
+    return () => {
+      mounted = false;
+      window.clearInterval(interval);
+    };
   }, []);
+
+  const stats = analytics?.stats ?? null;
 
   const statCards = [
     {
@@ -76,8 +95,8 @@ export default function DashboardPage() {
       const data = await res.json();
       if (res.ok) {
         alert(data.message);
-        // Refresh stats
-        fetch("/api/stats").then(r => r.json()).then(setStats);
+        const refreshed = await fetch("/api/analytics", { cache: "no-store" }).then((r) => r.json());
+        setAnalytics(refreshed);
       } else {
         alert(data.error || "God Mode failed");
       }
@@ -86,6 +105,31 @@ export default function DashboardPage() {
       alert("An error occurred during God Mode execution.");
     } finally {
       setGodModeActive(false);
+    }
+  };
+
+  const handleAutoScore = async () => {
+    setAutoScoring(true);
+    try {
+      const jobsResponse = await fetch("/api/jobs", { cache: "no-store" });
+      const jobsData = await jobsResponse.json();
+      const unscoredJobs = (jobsData.jobs || []).filter((job: { id: string; score?: unknown; status: string }) => !job.score && job.status !== "applied");
+
+      for (const job of unscoredJobs.slice(0, 10)) {
+        await fetch("/api/jobs/score", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ jobId: job.id, useAI: false }),
+        });
+      }
+
+      const refreshed = await fetch("/api/analytics", { cache: "no-store" }).then((r) => r.json());
+      setAnalytics(refreshed);
+    } catch (error) {
+      console.error(error);
+      alert("Auto Score failed.");
+    } finally {
+      setAutoScoring(false);
     }
   };
 
@@ -98,11 +142,11 @@ export default function DashboardPage() {
       color: "#6366f1",
     },
     {
-      icon: <Zap size={18} />,
       label: "Auto Score",
-      desc: "Score all unscored jobs with AI",
-      href: "#",
+      desc: autoScoring ? "Scoring jobs now..." : "Score up to 10 unscored jobs",
+      onClick: handleAutoScore,
       color: "#22d3ee",
+      icon: autoScoring ? <RefreshCw size={18} className="animate-spin" /> : <Zap size={18} />,
     },
     {
       icon: godModeActive ? <RefreshCw size={18} className="animate-spin" /> : <Bot size={18} />,
@@ -113,12 +157,7 @@ export default function DashboardPage() {
     },
   ];
 
-  const recentActivity = [
-    { time: "Just now", action: "System initialized", type: "system" },
-    { time: "Ready", action: "AI Scoring Engine online", type: "ai" },
-    { time: "Ready", action: "Resume Intelligence Engine online", type: "ai" },
-    { time: "Ready", action: "Job Search Agents standing by", type: "agent" },
-  ];
+  const recentActivity = analytics?.recentLogs ?? [];
 
   return (
     <div>
@@ -239,9 +278,9 @@ export default function DashboardPage() {
           </h3>
           <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
             {quickActions.map((action, i) => (
-              <a
+              <Link
                 key={i}
-                href={action.href}
+                href={action.href || "#"}
                 onClick={(e) => {
                   if (action.onClick) {
                     e.preventDefault();
@@ -299,7 +338,7 @@ export default function DashboardPage() {
                     {action.desc}
                   </div>
                 </div>
-              </a>
+              </Link>
             ))}
           </div>
         </div>
@@ -323,9 +362,11 @@ export default function DashboardPage() {
             Agent Activity
           </h3>
           <div style={{ display: "flex", flexDirection: "column", gap: "0" }}>
-            {recentActivity.map((item, i) => (
+            {recentActivity.length === 0 ? (
+              <div style={{ fontSize: "13px", color: "#8a8a9a" }}>No activity yet.</div>
+            ) : recentActivity.map((item, i) => (
               <div
-                key={i}
+                key={item.id}
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -343,9 +384,9 @@ export default function DashboardPage() {
                     height: "8px",
                     borderRadius: "50%",
                     background:
-                      item.type === "system"
+                      item.agentType === "system"
                         ? "#34d399"
-                        : item.type === "ai"
+                        : item.agentType === "score"
                         ? "#6366f1"
                         : "#22d3ee",
                     flexShrink: 0,
@@ -363,7 +404,7 @@ export default function DashboardPage() {
                     fontFamily: "var(--font-mono)",
                   }}
                 >
-                  {item.time}
+                  {formatRelativeTime(item.createdAt)}
                 </div>
               </div>
             ))}

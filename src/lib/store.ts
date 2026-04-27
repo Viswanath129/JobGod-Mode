@@ -10,6 +10,7 @@ import type {
   DashboardStats,
   AgentLog,
   UserProfile,
+  AnalyticsSnapshot,
 } from "@/types";
 
 const DATA_DIR = join(process.cwd(), "data");
@@ -19,6 +20,18 @@ const DB_FILE = join(DATA_DIR, "store.json");
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
+
+type SupabaseJobRow = Job & { job_scores?: JobScore[] };
+type SupabaseApplicationRow = {
+  id: string;
+  job_id: string;
+  resume_id: string;
+  status: Application["status"];
+  applied_at?: string;
+  method: Application["method"];
+  notes?: string;
+  jobs?: Job;
+};
 
 interface Store {
   user: {
@@ -30,6 +43,7 @@ interface Store {
     githubUrl: string;
     portfolioUrl: string;
     resumeMd: string;
+    originalResumePath?: string;
   };
   preferences: UserPreferences;
   jobs: Job[];
@@ -50,6 +64,7 @@ function getDefaultStore(): Store {
       githubUrl: "https://github.com/Viswanath129",
       portfolioUrl: "https://studio-3388969323-8ef91.web.app",
       resumeMd: "",
+      originalResumePath: "",
     },
     preferences: {
       preferredLocations: ["Hyderabad", "Bangalore", "Chennai", "Remote", "India"],
@@ -75,6 +90,39 @@ function getDefaultStore(): Store {
     applications: [],
     logs: [],
   };
+}
+
+function normalizeIdentity(value?: string | null): string {
+  return (value || "").trim().toLowerCase();
+}
+
+function sameJobIdentity(a: Partial<Job>, b: Partial<Job>): boolean {
+  const aExternalId = normalizeIdentity(a.externalId);
+  const bExternalId = normalizeIdentity(b.externalId);
+  if (aExternalId && bExternalId && aExternalId === bExternalId) {
+    return true;
+  }
+
+  const aUrl = normalizeIdentity(a.url);
+  const bUrl = normalizeIdentity(b.url);
+  if (aUrl && bUrl && aUrl === bUrl) {
+    return true;
+  }
+
+  const aFingerprint = [
+    normalizeIdentity(a.source),
+    normalizeIdentity(a.title),
+    normalizeIdentity(a.company),
+    normalizeIdentity(a.location),
+  ].join("|");
+  const bFingerprint = [
+    normalizeIdentity(b.source),
+    normalizeIdentity(b.title),
+    normalizeIdentity(b.company),
+    normalizeIdentity(b.location),
+  ].join("|");
+
+  return aFingerprint === bFingerprint && aFingerprint !== "|||";
 }
 
 async function loadLocalStore(): Promise<Store> {
@@ -131,6 +179,7 @@ export async function getUser(): Promise<UserProfile> {
         github: data.github_url || store.user.githubUrl,
         portfolio: data.portfolio_url || store.user.portfolioUrl,
         resumeMd: data.resume_md || store.user.resumeMd,
+        originalResumePath: data.original_resume_path || store.user.originalResumePath,
         preferences: data.preferences || preferences,
       };
     }
@@ -144,6 +193,7 @@ export async function getUser(): Promise<UserProfile> {
     github: store.user.githubUrl,
     portfolio: store.user.portfolioUrl,
     resumeMd: store.user.resumeMd,
+    originalResumePath: store.user.originalResumePath,
     preferences: store.preferences,
   };
 }
@@ -158,6 +208,7 @@ export async function updateUser(update: Partial<UserProfile>) {
   if (update.github) store.user.githubUrl = update.github;
   if (update.portfolio) store.user.portfolioUrl = update.portfolio;
   if (update.resumeMd) store.user.resumeMd = update.resumeMd;
+  if (update.originalResumePath) store.user.originalResumePath = update.originalResumePath;
 
   if (supabase) {
     await supabase.from("profiles").upsert({
@@ -168,6 +219,7 @@ export async function updateUser(update: Partial<UserProfile>) {
       github_url: store.user.githubUrl,
       portfolio_url: store.user.portfolioUrl,
       resume_md: store.user.resumeMd,
+      original_resume_path: store.user.originalResumePath,
     });
   }
 
@@ -204,13 +256,28 @@ export async function getJobs(filters?: {
     let query = supabase.from("jobs").select("*, job_scores(*)");
     if (filters?.status) query = query.eq("status", filters.status);
     if (filters?.source) query = query.eq("source", filters.source);
-    
+
     const { data, error } = await query;
     if (!error && data) {
-      return data.map((j: any) => ({
+      let jobs = (data as SupabaseJobRow[]).map((j) => ({
         ...j,
         score: j.job_scores?.[0]
       }));
+
+      if (filters?.search) {
+        const q = filters.search.toLowerCase();
+        jobs = jobs.filter((j: Job) =>
+          j.title.toLowerCase().includes(q) ||
+          j.company.toLowerCase().includes(q) ||
+          (j.location || "").toLowerCase().includes(q)
+        );
+      }
+
+      if (filters?.minScore !== undefined) {
+        jobs = jobs.filter((j: Job & { score?: JobScore }) => (j.score?.totalScore ?? -1) >= filters.minScore!);
+      }
+
+      return jobs;
     }
   }
 
@@ -220,9 +287,23 @@ export async function getJobs(filters?: {
   if (filters?.source) jobs = jobs.filter((j) => j.source === filters.source);
   if (filters?.search) {
     const q = filters.search.toLowerCase();
-    jobs = jobs.filter((j) => j.title.toLowerCase().includes(q) || j.company.toLowerCase().includes(q));
+    jobs = jobs.filter((j) =>
+      j.title.toLowerCase().includes(q) ||
+      j.company.toLowerCase().includes(q) ||
+      (j.location || "").toLowerCase().includes(q)
+    );
   }
-  return jobs.map((j) => ({ ...j, score: store.scores.find((s) => s.jobId === j.id) }));
+
+  const enrichedJobs = jobs.map((j) => ({
+    ...j,
+    score: store.scores.find((s) => s.jobId === j.id),
+  }));
+
+  if (filters?.minScore !== undefined) {
+    return enrichedJobs.filter((j) => (j.score?.totalScore ?? -1) >= filters.minScore!);
+  }
+
+  return enrichedJobs;
 }
 
 export async function getJob(id: string): Promise<(Job & { score?: JobScore }) | null> {
@@ -241,7 +322,7 @@ export async function addJobs(newJobs: Partial<Job>[]): Promise<Job[]> {
   const added: Job[] = [];
 
   for (const j of newJobs) {
-    if (j.url && store.jobs.some((existing) => existing.url === j.url)) continue;
+    if (store.jobs.some((existing) => sameJobIdentity(existing, j))) continue;
     const job: Job = {
       id: j.id || crypto.randomUUID(),
       externalId: j.externalId,
@@ -249,12 +330,21 @@ export async function addJobs(newJobs: Partial<Job>[]): Promise<Job[]> {
       title: j.title || "Unknown",
       company: j.company || "Unknown",
       location: j.location,
+      workMode: j.workMode,
+      salaryMin: j.salaryMin,
+      salaryMax: j.salaryMax,
+      salaryCurrency: j.salaryCurrency,
+      description: j.description,
+      requirements: j.requirements,
       url: j.url || "",
+      postedAt: j.postedAt,
+      expiresAt: j.expiresAt,
       status: j.status || "discovered",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      isScam: false,
-      isRepost: false
+      isScam: j.isScam ?? false,
+      isRepost: j.isRepost ?? false,
+      visaSponsor: j.visaSponsor,
     };
     store.jobs.push(job);
     added.push(job);
@@ -311,6 +401,61 @@ export async function addScore(score: JobScore): Promise<JobScore> {
   return score;
 }
 
+export async function addApplication(application: Application): Promise<Application> {
+  if (supabase) {
+    await supabase.from("applications").upsert({
+      id: application.id,
+      job_id: application.jobId,
+      resume_id: application.resumeId,
+      status: application.status,
+      applied_at: application.appliedAt,
+      method: application.method,
+      notes: application.notes,
+    });
+  }
+
+  const store = await loadLocalStore();
+  store.applications = store.applications.filter((entry) => entry.jobId !== application.jobId);
+  store.applications.push(application);
+  await saveLocalStore(store);
+  return application;
+}
+
+export async function getApplications(): Promise<Application[]> {
+  if (supabase) {
+    const { data, error } = await supabase
+      .from("applications")
+      .select("*, jobs(*)")
+      .order("applied_at", { ascending: false });
+
+    if (!error && data) {
+      return (data as SupabaseApplicationRow[]).map((application) => ({
+        id: application.id,
+        jobId: application.job_id,
+        resumeId: application.resume_id,
+        status: application.status,
+        appliedAt: application.applied_at,
+        method: application.method,
+        notes: application.notes,
+        job: application.jobs,
+      }));
+    }
+  }
+
+  const store = await loadLocalStore();
+  return [...store.applications]
+    .sort((a, b) => {
+      const aTime = a.appliedAt ? new Date(a.appliedAt).getTime() : 0;
+      const bTime = b.appliedAt ? new Date(b.appliedAt).getTime() : 0;
+      return bTime - aTime;
+    })
+    .map((application) => ({
+      ...application,
+      job: store.jobs.find((job) => job.id === application.jobId),
+      resume: store.resumes.find((resume) => resume.id === application.resumeId),
+    }));
+}
+
 export async function addLog(log: AgentLog): Promise<void> {
   if (supabase) {
     await supabase.from("agent_logs").insert({
@@ -331,16 +476,98 @@ export async function getStats(): Promise<DashboardStats> {
   const store = await loadLocalStore();
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const weekStart = new Date(today);
+  weekStart.setDate(today.getDate() - 6);
   const scores = store.scores.map((s) => s.totalScore);
+  const totalApplied =
+    store.applications.length || store.jobs.filter((job) => job.status === "applied").length;
+  const totalInterviews = Math.max(
+    store.applications.filter((a) => a.status === "interview_scheduled").length,
+    store.jobs.filter((job) => job.status === "interview").length
+  );
+  const totalOffers = Math.max(
+    store.applications.filter((a) => a.status === "offer" || a.status === "accepted").length,
+    store.jobs.filter((job) => job.status === "offer" || job.status === "accepted").length
+  );
 
   return {
     totalDiscovered: store.jobs.length,
-    totalApplied: store.applications.length,
-    totalInterviews: store.applications.filter((a) => a.status === "interview_scheduled").length,
-    totalOffers: store.applications.filter((a) => a.status === "offer").length,
+    totalScored: store.scores.length,
+    totalApplied,
+    totalInterviews,
+    totalOffers,
     averageScore: scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0,
     todayNewJobs: store.jobs.filter((j) => new Date(j.createdAt) >= today).length,
-    weekApplications: 0, // Simplified for brevity
+    weekApplications: store.applications.filter((a) => {
+      if (!a.appliedAt) return false;
+      return new Date(a.appliedAt) >= weekStart;
+    }).length,
     topScore: scores.length ? Math.max(...scores) : 0,
+  };
+}
+
+export async function getRecentLogs(limit = 8): Promise<AgentLog[]> {
+  const store = await loadLocalStore();
+  return [...store.logs]
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, limit);
+}
+
+export async function getAnalyticsSnapshot(): Promise<AnalyticsSnapshot> {
+  const store = await loadLocalStore();
+  const stats = await getStats();
+  const now = new Date();
+  const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  const weeklyActivity = Array.from({ length: 7 }, (_, index) => {
+    const current = new Date(dayStart);
+    current.setDate(dayStart.getDate() - (6 - index));
+    const next = new Date(current);
+    next.setDate(current.getDate() + 1);
+
+    return {
+      day: current.toLocaleDateString("en-US", { weekday: "short" }),
+      jobs: store.jobs.filter((job) => {
+        const createdAt = new Date(job.createdAt);
+        return createdAt >= current && createdAt < next;
+      }).length,
+      applied: store.applications.filter((application) => {
+        if (!application.appliedAt) return false;
+        const appliedAt = new Date(application.appliedAt);
+        return appliedAt >= current && appliedAt < next;
+      }).length,
+    };
+  });
+
+  const buckets = [
+    { label: "80-100", min: 80, max: 100 },
+    { label: "60-79", min: 60, max: 79 },
+    { label: "40-59", min: 40, max: 59 },
+    { label: "0-39", min: 0, max: 39 },
+  ];
+  const totalScores = Math.max(store.scores.length, 1);
+  const scoreDistribution = buckets.map((bucket) => {
+    const count = store.scores.filter((score) => score.totalScore >= bucket.min && score.totalScore <= bucket.max).length;
+    return {
+      label: bucket.label,
+      count,
+      pct: Math.round((count / totalScores) * 100),
+    };
+  });
+
+  const funnel = [
+    { label: "Discovered", value: store.jobs.length, color: "#6366f1" },
+    { label: "Scored", value: store.scores.length, color: "#22d3ee" },
+    { label: "Applied", value: stats.totalApplied, color: "#34d399" },
+    { label: "Interview", value: stats.totalInterviews, color: "#fbbf24" },
+    { label: "Offer", value: stats.totalOffers, color: "#a78bfa" },
+  ];
+
+  return {
+    stats,
+    weeklyActivity,
+    scoreDistribution,
+    funnel,
+    recentLogs: await getRecentLogs(),
   };
 }
