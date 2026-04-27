@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
 
     if (useAI && (process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY)) {
       // Full AI scoring
-      result = await scoreJob(job, user.resumeMd, preferences);
+      result = await scoreJob(job, user.resumeMd || "", preferences);
 
       // Update scam/repost flags
       await updateJob(jobId, {

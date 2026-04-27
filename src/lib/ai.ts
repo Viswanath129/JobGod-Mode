@@ -158,18 +158,28 @@ export async function aiPrompt(systemPrompt: string, userPrompt: string): Promis
  * AI JSON response — parses structured output
  */
 export async function aiJSON<T>(systemPrompt: string, userPrompt: string): Promise<T> {
-  const response = await aiPrompt(
-    systemPrompt + "\n\nIMPORTANT: Respond with valid JSON only. No markdown, no code fences, just raw JSON.",
-    userPrompt
-  );
-
-  // Strip any markdown code fences if present
-  const cleaned = response.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
   try {
-    return JSON.parse(cleaned) as T;
+    const response = await aiPrompt(
+      systemPrompt + "\n\nIMPORTANT: Respond with valid JSON only. No markdown, no code fences, just raw JSON.",
+      userPrompt
+    );
+
+    // Strip any markdown code fences if present
+    const cleaned = response.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+    
+    if (!cleaned || cleaned === '') {
+      throw new Error("AI returned empty response");
+    }
+    
+    try {
+      return JSON.parse(cleaned) as T;
+    } catch (error) {
+      console.error("Failed to parse AI JSON response:", cleaned);
+      throw new Error(`AI returned invalid JSON: ${error instanceof Error ? error.message : String(error)}`);
+    }
   } catch (error) {
-    console.error("Failed to parse AI JSON response:", cleaned);
-    throw new Error(`AI returned invalid JSON: ${error instanceof Error ? error.message : String(error)}`);
+    console.error("AI JSON call failed:", error);
+    throw error;
   }
 }
 
