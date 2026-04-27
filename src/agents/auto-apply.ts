@@ -128,9 +128,14 @@ export class AutoApplyAgent {
     for (const selector of submitSelectors) {
       const btn = await page.$(selector);
       if (btn) {
-        // In a real scenario, we'd click it. For safety in dev, we log it.
         console.log(`[AutoApply] Found submit button: ${selector}`);
-        // await btn.click();
+        if (process.env.DRY_RUN === "true") {
+          console.log("[AutoApply] DRY_RUN is enabled. Skipping final click.");
+          return true;
+        }
+        await btn.click();
+        // Wait for potential navigation or success message
+        await page.waitForTimeout(5000);
         return true; 
       }
     }

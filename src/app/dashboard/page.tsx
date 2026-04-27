@@ -64,6 +64,30 @@ export default function DashboardPage() {
     },
   ];
 
+  const [godModeActive, setGodModeActive] = useState(false);
+
+  const handleGodMode = async () => {
+    if (!confirm("Activate God Mode? This will automatically search, score, and apply to high-quality jobs.")) return;
+    
+    setGodModeActive(true);
+    try {
+      const res = await fetch("/api/agents/god-mode", { method: "POST" });
+      const data = await res.json();
+      if (res.ok) {
+        alert(data.message);
+        // Refresh stats
+        fetch("/api/stats").then(r => r.json()).then(setStats);
+      } else {
+        alert(data.error || "God Mode failed");
+      }
+    } catch (e) {
+      console.error(e);
+      alert("An error occurred during God Mode execution.");
+    } finally {
+      setGodModeActive(false);
+    }
+  };
+
   const quickActions = [
     {
       icon: <Search size={18} />,
@@ -80,10 +104,10 @@ export default function DashboardPage() {
       color: "#22d3ee",
     },
     {
-      icon: <Bot size={18} />,
+      icon: godModeActive ? <RefreshCw size={18} className="animate-spin" /> : <Bot size={18} />,
       label: "God Mode",
-      desc: "Full autopilot — search, score, apply",
-      href: "#",
+      desc: godModeActive ? "Autopilot running..." : "Full autopilot — search, score, apply",
+      onClick: handleGodMode,
       color: "#f97316",
     },
   ];
@@ -217,6 +241,12 @@ export default function DashboardPage() {
               <a
                 key={i}
                 href={action.href}
+                onClick={(e) => {
+                  if (action.onClick) {
+                    e.preventDefault();
+                    action.onClick();
+                  }
+                }}
                 style={{
                   display: "flex",
                   alignItems: "center",

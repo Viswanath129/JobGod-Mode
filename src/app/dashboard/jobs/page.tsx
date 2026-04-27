@@ -105,6 +105,31 @@ export default function JobsPage() {
     }
   };
 
+  const [applying, setApplying] = useState<string | null>(null);
+
+  const handleApply = async (jobId: string) => {
+    setApplying(jobId);
+    try {
+      const res = await fetch("/api/jobs/apply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobId }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert("Application submitted successfully!");
+        fetchJobs();
+      } else {
+        alert(data.error || "Failed to apply");
+      }
+    } catch (e) {
+      console.error(e);
+      alert("An error occurred during application.");
+    } finally {
+      setApplying(null);
+    }
+  };
+
   const toggleFilter = (arr: string[], item: string, setter: (v: string[]) => void) => {
     setter(arr.includes(item) ? arr.filter((x) => x !== item) : [...arr, item]);
   };
@@ -429,6 +454,26 @@ export default function JobsPage() {
                     >
                       <Star size={14} />
                       Score
+                    </button>
+                  )}
+
+                  {job.status === "applied" ? (
+                    <div className="badge badge-emerald" style={{ padding: "8px 12px" }}>
+                      Applied
+                    </div>
+                  ) : (
+                    <button
+                      className="btn-primary"
+                      style={{ fontSize: "12px", padding: "8px 14px" }}
+                      onClick={() => handleApply(job.id)}
+                      disabled={applying === job.id}
+                    >
+                      {applying === job.id ? (
+                        <Loader2 size={14} className="animate-spin" />
+                      ) : (
+                        <Zap size={14} />
+                      )}
+                      Apply
                     </button>
                   )}
 

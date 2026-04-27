@@ -6,11 +6,22 @@ import type { TailoredResume } from "@/types";
 
 export default function ResumesPage() {
   const [resumes, setResumes] = useState<TailoredResume[]>([]);
+  const [user, setUser] = useState<any>(null);
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
+  const fetchUserData = async () => {
+    try {
+      const res = await fetch("/api/preferences"); // This returns the profile in my current store implementation
+      const data = await res.json();
+      setUser(data);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   useEffect(() => {
-    setResumes([]);
+    fetchUserData();
   }, []);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -33,6 +44,7 @@ export default function ResumesPage() {
 
       if (res.ok) {
         setMessage({ type: "success", text: "Resume uploaded and parsed successfully!" });
+        fetchUserData();
       } else {
         setMessage({ type: "error", text: data.error || "Failed to upload resume" });
       }
@@ -90,16 +102,15 @@ export default function ResumesPage() {
         </div>
       )}
 
-      {/* Base Resume Card */}
       <div
         className="glass-card"
         style={{
           padding: "24px",
           marginBottom: "32px",
-          borderColor: "rgba(99,102,241,0.3)",
+          borderColor: user?.resumeMd ? "rgba(52,211,153,0.3)" : "rgba(99,102,241,0.3)",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: user?.resumeMd ? "16px" : "0" }}>
           <div
             style={{
               width: "48px",
@@ -115,14 +126,37 @@ export default function ResumesPage() {
           </div>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: "16px", fontWeight: 700, marginBottom: "2px" }}>
-              Base Resume — Kasi Viswanath Vegisetti
+              Base Resume — {user?.name || "Kasi Viswanath Vegisetti"}
             </div>
             <div style={{ fontSize: "13px", color: "#8a8a9a" }}>
-              AI & Embedded Systems Engineer · Computer Vision · Edge AI
+              {user?.email || "kasiviswanathvegisetti43@gmail.com"}
             </div>
           </div>
-          <span className="badge badge-emerald">PRIMARY</span>
+          {user?.resumeMd ? (
+            <span className="badge badge-emerald">PARSED & READY</span>
+          ) : (
+            <span className="badge badge-amber">NOT UPLOADED</span>
+          )}
         </div>
+
+        {user?.resumeMd && (
+          <div 
+            style={{ 
+              background: "rgba(0,0,0,0.2)", 
+              padding: "16px", 
+              borderRadius: "8px", 
+              fontSize: "12px", 
+              color: "#a0a0b0",
+              maxHeight: "200px",
+              overflowY: "auto",
+              fontFamily: "var(--font-mono)",
+              whiteSpace: "pre-wrap",
+              border: "1px solid rgba(255,255,255,0.05)"
+            }}
+          >
+            {user.resumeMd}
+          </div>
+        )}
       </div>
 
       {/* Tailored Resumes */}
