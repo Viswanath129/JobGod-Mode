@@ -147,6 +147,7 @@ export interface UserProfile {
   github?: string;
   portfolio?: string;
   resumeMd: string;
+  originalResumePath?: string;
   preferences: UserPreferences;
 }
 

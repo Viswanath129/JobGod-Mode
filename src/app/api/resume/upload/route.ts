@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { updateUser } from "@/lib/store";
+import { promises as fs } from "fs";
+import path from "path";
 import pdf from "pdf-parse";
 import mammoth from "mammoth";
 
@@ -35,8 +37,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Ensure data directory exists
+    const dataDir = path.join(process.cwd(), "data");
+    await fs.mkdir(dataDir, { recursive: true });
+
+    // Save the file to disk
+    const extension = file.name.endsWith(".pdf") ? ".pdf" : ".docx";
+    const filePath = path.join(dataDir, `resume${extension}`);
+    await fs.writeFile(filePath, buffer);
+
     // Update the base resume in the store
-    await updateUser({ resumeMd: text });
+    await updateUser({ 
+      resumeMd: text,
+      originalResumePath: filePath
+    });
 
     return NextResponse.json({
       success: true,
@@ -46,7 +60,7 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     console.error("Upload error:", error);
     return NextResponse.json(
-      { error: "Failed to process resume: " + error.message },
+      { error: "Failed to process resume: " + (error?.message || "Unknown error") },
       { status: 500 }
     );
   }

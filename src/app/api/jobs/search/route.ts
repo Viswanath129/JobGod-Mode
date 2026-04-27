@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
       jobs: added,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Search failed";
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error("Search API Error:", error);
+    return NextResponse.json({ error: "An unexpected error occurred during the job search. Please check server logs." }, { status: 500 });
   }
 }

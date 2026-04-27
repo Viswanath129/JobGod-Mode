@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
       result = await scoreJob(job, user.resumeMd, preferences);
 
       // Update scam/repost flags
-      updateJob(jobId, {
+      await updateJob(jobId, {
         isScam: result.isScam,
         isRepost: result.isRepost,
         status: "scored",
@@ -49,10 +49,10 @@ export async function POST(req: NextRequest) {
         isScam: false,
         isRepost: false,
       };
-      updateJob(jobId, { status: "scored" });
+      await updateJob(jobId, { status: "scored" });
     }
 
-    const score = addScore({
+    const score = await addScore({
       id: crypto.randomUUID(),
       jobId,
       totalScore: result.totalScore,
@@ -67,9 +67,9 @@ export async function POST(req: NextRequest) {
       reasoning: result.reasoning,
     });
 
-    addLog({
+    await addLog({
       id: crypto.randomUUID(),
-      agentType: "scorer",
+      agentType: "score",
       action: `Scored "${job.title}" at ${job.company}: ${result.totalScore}/100`,
       details: { jobId, score: result.totalScore, useAI },
       status: "success",
@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ score });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Scoring failed";
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error("Score API Error:", error);
+    return NextResponse.json({ error: "An unexpected error occurred during job scoring. Please check server logs." }, { status: 500 });
   }
 }

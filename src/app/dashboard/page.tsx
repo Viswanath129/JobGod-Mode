@@ -14,6 +14,7 @@ import {
   ArrowUpRight,
   Clock,
   Bot,
+  RefreshCw,
 } from "lucide-react";
 import type { DashboardStats } from "@/types";
 

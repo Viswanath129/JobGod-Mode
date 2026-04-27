@@ -67,7 +67,9 @@ export async function searchLinkedInJobs(query: string, location: string): Promi
   const apiKey = process.env.SERPAPI_API_KEY;
   if (!apiKey) return [];
 
-  const q = `site:linkedin.com/jobs/view "${query}" in "${location}"`;
+  const safeQuery = query.replace(/"/g, '');
+  const safeLocation = location.replace(/"/g, '');
+  const q = `site:linkedin.com/jobs/view "${safeQuery}" in "${safeLocation}"`;
   const searchUrl = new URL("https://serpapi.com/search");
   searchUrl.searchParams.append("q", q);
   searchUrl.searchParams.append("api_key", apiKey);
@@ -102,6 +104,10 @@ export async function scrapeCareerPage(
   companyName: string
 ): Promise<Partial<Job>[]> {
   const scraperApiKey = process.env.SCRAPERAPI_API_KEY;
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    console.error(`Invalid URL protocol for scrapeCareerPage: ${url}`);
+    return [];
+  }
   let targetUrl = url;
 
   // Route through ScraperAPI to bypass bot detection if key is available
@@ -132,14 +138,16 @@ export async function scrapeCareerPage(
       const href = $(el).attr("href");
       if (title && href) {
         const fullUrl = href.startsWith("http") ? href : new URL(href, url).toString();
-        jobs.push({
-          id: uuidv4(),
-          source: "company_page" as JobSource,
-          title,
-          company: companyName,
-          url: fullUrl,
-          status: "discovered",
-        });
+        if (fullUrl.startsWith("http://") || fullUrl.startsWith("https://")) {
+          jobs.push({
+            id: uuidv4(),
+            source: "company_page" as JobSource,
+            title,
+            company: companyName,
+            url: fullUrl,
+            status: "discovered",
+          });
+        }
       }
     });
 

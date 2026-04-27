@@ -165,7 +165,12 @@ export async function aiJSON<T>(systemPrompt: string, userPrompt: string): Promi
 
   // Strip any markdown code fences if present
   const cleaned = response.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-  return JSON.parse(cleaned) as T;
+  try {
+    return JSON.parse(cleaned) as T;
+  } catch (error) {
+    console.error("Failed to parse AI JSON response:", cleaned);
+    throw new Error(`AI returned invalid JSON: ${error instanceof Error ? error.message : String(error)}`);
+  }
 }
 
 import { Job, JobScore, UserProfile, TailoredResume } from "@/types";
@@ -258,6 +263,8 @@ Email: ${user.email}
 Phone: ${user.phone}
 LinkedIn: ${user.linkedin}
 GitHub: ${user.github}
+
+SPECIAL RULE: If the field is asking for a Resume or CV file upload, output the exact value: "FILE_UPLOAD_RESUME".
 
 Return JSON mapping: { "field_identifier": "value" }`;
 

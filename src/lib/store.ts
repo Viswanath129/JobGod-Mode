@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
+import { promises as fs } from "fs";
 import { join } from "path";
 import { createClient } from "@supabase/supabase-js";
 import type {
@@ -9,6 +9,7 @@ import type {
   Application,
   DashboardStats,
   AgentLog,
+  UserProfile,
 } from "@/types";
 
 const DATA_DIR = join(process.cwd(), "data");
@@ -76,29 +77,47 @@ function getDefaultStore(): Store {
   };
 }
 
-function loadLocalStore(): Store {
+async function loadLocalStore(): Promise<Store> {
   try {
-    if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
-    if (!existsSync(DB_FILE)) {
+    try {
+      await fs.access(DATA_DIR);
+    } catch {
+      await fs.mkdir(DATA_DIR, { recursive: true });
+    }
+    
+    try {
+      await fs.access(DB_FILE);
+    } catch {
       const defaultStore = getDefaultStore();
-      writeFileSync(DB_FILE, JSON.stringify(defaultStore, null, 2));
+      await fs.writeFile(DB_FILE, JSON.stringify(defaultStore, null, 2));
       return defaultStore;
     }
-    return JSON.parse(readFileSync(DB_FILE, "utf-8"));
-  } catch {
+    
+    const content = await fs.readFile(DB_FILE, "utf-8");
+    return JSON.parse(content);
+  } catch (error) {
+    console.error("Local store load error:", error);
     return getDefaultStore();
   }
 }
 
-function saveLocalStore(store: Store): void {
-  if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
-  writeFileSync(DB_FILE, JSON.stringify(store, null, 2));
+async function saveLocalStore(store: Store): Promise<void> {
+  try {
+    try {
+      await fs.access(DATA_DIR);
+    } catch {
+      await fs.mkdir(DATA_DIR, { recursive: true });
+    }
+    await fs.writeFile(DB_FILE, JSON.stringify(store, null, 2));
+  } catch (error) {
+    console.error("Failed to save local store:", error);
+  }
 }
 
 // ---- CRUD Operations (Async for Supabase support) ----
 
 export async function getUser(): Promise<UserProfile> {
-  const store = loadLocalStore();
+  const store = await loadLocalStore();
   const preferences = store.preferences;
 
   if (supabase) {
@@ -130,7 +149,7 @@ export async function getUser(): Promise<UserProfile> {
 }
 
 export async function updateUser(update: Partial<UserProfile>) {
-  const store = loadLocalStore();
+  const store = await loadLocalStore();
   
   if (update.name) store.user.fullName = update.name;
   if (update.email) store.user.email = update.email;
@@ -152,7 +171,7 @@ export async function updateUser(update: Partial<UserProfile>) {
     });
   }
 
-  saveLocalStore(store);
+  await saveLocalStore(store);
   return store.user;
 }
 
@@ -161,16 +180,17 @@ export async function getPreferences(): Promise<UserPreferences> {
     const { data, error } = await supabase.from("profiles").select("preferences").single();
     if (!error && data?.preferences) return data.preferences;
   }
-  return loadLocalStore().preferences;
+  const store = await loadLocalStore();
+  return store.preferences;
 }
 
 export async function updatePreferences(prefs: Partial<UserPreferences>): Promise<UserPreferences> {
   if (supabase) {
     await supabase.from("profiles").upsert({ preferences: prefs });
   }
-  const store = loadLocalStore();
+  const store = await loadLocalStore();
   store.preferences = { ...store.preferences, ...prefs };
-  saveLocalStore(store);
+  await saveLocalStore(store);
   return store.preferences;
 }
 
@@ -194,7 +214,7 @@ export async function getJobs(filters?: {
     }
   }
 
-  const store = loadLocalStore();
+  const store = await loadLocalStore();
   let jobs = store.jobs;
   if (filters?.status) jobs = jobs.filter((j) => j.status === filters.status);
   if (filters?.source) jobs = jobs.filter((j) => j.source === filters.source);
@@ -210,14 +230,14 @@ export async function getJob(id: string): Promise<(Job & { score?: JobScore }) |
     const { data, error } = await supabase.from("jobs").select("*, job_scores(*)").eq("id", id).single();
     if (!error && data) return { ...data, score: data.job_scores?.[0] };
   }
-  const store = loadLocalStore();
+  const store = await loadLocalStore();
   const job = store.jobs.find((j) => j.id === id);
   if (!job) return null;
   return { ...job, score: store.scores.find((s) => s.jobId === id) };
 }
 
 export async function addJobs(newJobs: Partial<Job>[]): Promise<Job[]> {
-  const store = loadLocalStore();
+  const store = await loadLocalStore();
   const added: Job[] = [];
 
   for (const j of newJobs) {
@@ -252,7 +272,7 @@ export async function addJobs(newJobs: Partial<Job>[]): Promise<Job[]> {
     })));
   }
 
-  saveLocalStore(store);
+  await saveLocalStore(store);
   return added;
 }
 
@@ -260,11 +280,11 @@ export async function updateJob(id: string, update: Partial<Job>): Promise<Job |
   if (supabase) {
     await supabase.from("jobs").update(update).eq("id", id);
   }
-  const store = loadLocalStore();
+  const store = await loadLocalStore();
   const idx = store.jobs.findIndex((j) => j.id === id);
   if (idx === -1) return null;
   store.jobs[idx] = { ...store.jobs[idx], ...update, updatedAt: new Date().toISOString() };
-  saveLocalStore(store);
+  await saveLocalStore(store);
   return store.jobs[idx];
 }
 
@@ -284,10 +304,10 @@ export async function addScore(score: JobScore): Promise<JobScore> {
       reasoning: score.reasoning
     });
   }
-  const store = loadLocalStore();
+  const store = await loadLocalStore();
   store.scores = store.scores.filter((s) => s.jobId !== score.jobId);
   store.scores.push(score);
-  saveLocalStore(store);
+  await saveLocalStore(store);
   return score;
 }
 
@@ -301,14 +321,14 @@ export async function addLog(log: AgentLog): Promise<void> {
       status: log.status
     });
   }
-  const store = loadLocalStore();
+  const store = await loadLocalStore();
   store.logs.push(log);
   if (store.logs.length > 500) store.logs = store.logs.slice(-500);
-  saveLocalStore(store);
+  await saveLocalStore(store);
 }
 
 export async function getStats(): Promise<DashboardStats> {
-  const store = loadLocalStore();
+  const store = await loadLocalStore();
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const scores = store.scores.map((s) => s.totalScore);

@@ -41,6 +41,9 @@ export class AutoApplyAgent {
       
       // Use ScraperAPI for residential proxy if configured
       const targetUrl = this.job.url;
+      if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
+        throw new Error('Invalid or unsafe job URL protocol');
+      }
       await page.goto(targetUrl, { waitUntil: "networkidle", timeout: 60000 });
 
       // 3. Autonomous Form Filling
@@ -101,12 +104,23 @@ export class AutoApplyAgent {
 
     // 3. Fill the fields
     for (const field of fields) {
-      const value = mapping[field.label] || mapping[field.name] || "";
+      // If AI didn't map a value, but it's a file input with "resume" or "cv" in label/name, assume it's the resume
+      const isResumeFile = field.type === "file" && (field.label.toLowerCase().includes("resume") || field.label.toLowerCase().includes("cv") || field.name.toLowerCase().includes("resume"));
+      
+      let value = mapping[field.label] || mapping[field.name] || "";
+      if (isResumeFile && !value) {
+        value = "FILE_UPLOAD_RESUME";
+      }
+
       if (value) {
         try {
-          if (field.type === "file") {
-            // Placeholder for file upload (would require saving resume to disk first)
-            // await page.setInputFiles(field.selector, resumePath);
+          if (field.type === "file" || value === "FILE_UPLOAD_RESUME") {
+            if (this.user.originalResumePath) {
+              console.log(`[AutoApply] Uploading file to ${field.label} from ${this.user.originalResumePath}`);
+              await page.setInputFiles(field.selector, this.user.originalResumePath);
+            } else {
+              console.warn(`[AutoApply] Cannot upload file to ${field.label} because originalResumePath is not set.`);
+            }
           } else {
             await page.fill(field.selector, value);
           }
