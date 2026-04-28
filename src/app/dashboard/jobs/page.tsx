@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Search,
   Filter,
@@ -142,11 +142,26 @@ export default function JobsPage() {
     setter(arr.includes(item) ? arr.filter((x) => x !== item) : [...arr, item]);
   };
 
-  const filteredJobs = jobs.filter((j) => {
-    if (selectedSources.length > 0 && !selectedSources.includes(j.source)) return false;
-    if (selectedModes.length > 0 && j.workMode && !selectedModes.map(m => m.toLowerCase().replace('-', '_')).includes(j.workMode)) return false;
-    return true;
-  });
+  // ⚡ Bolt Performance Optimization:
+  // Memoize filteredJobs to prevent re-calculating on every render.
+  // We also hoist the selectedModes mapping out of the filter loop
+  // reducing an O(N*M) string operation to O(M) mapping + O(N*M) lookup.
+  const filteredJobs = useMemo(() => {
+    const formattedModes = selectedModes.map((m) =>
+      m.toLowerCase().replace("-", "_")
+    );
+    return jobs.filter((j) => {
+      if (selectedSources.length > 0 && !selectedSources.includes(j.source)) return false;
+      if (
+        formattedModes.length > 0 &&
+        j.workMode &&
+        !formattedModes.includes(j.workMode)
+      ) {
+        return false;
+      }
+      return true;
+    });
+  }, [jobs, selectedSources, selectedModes]);
 
   return (
     <div>
