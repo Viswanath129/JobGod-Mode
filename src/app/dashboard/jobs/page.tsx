@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Search,
   Filter,
@@ -142,11 +142,21 @@ export default function JobsPage() {
     setter(arr.includes(item) ? arr.filter((x) => x !== item) : [...arr, item]);
   };
 
-  const filteredJobs = jobs.filter((j) => {
-    if (selectedSources.length > 0 && !selectedSources.includes(j.source)) return false;
-    if (selectedModes.length > 0 && j.workMode && !selectedModes.map(m => m.toLowerCase().replace('-', '_')).includes(j.workMode)) return false;
-    return true;
-  });
+  // ⚡ Bolt: Memoize filtered jobs to prevent O(N * M) string manipulations on every render
+  const filteredJobs = useMemo(() => {
+    if (jobs.length === 0) return [];
+
+    // ⚡ Bolt: Compute formatted modes once per filter change, not once per job
+    const formattedModes = selectedModes.length > 0
+      ? selectedModes.map(m => m.toLowerCase().replace('-', '_'))
+      : [];
+
+    return jobs.filter((j) => {
+      if (selectedSources.length > 0 && !selectedSources.includes(j.source)) return false;
+      if (formattedModes.length > 0 && j.workMode && !formattedModes.includes(j.workMode)) return false;
+      return true;
+    });
+  }, [jobs, selectedSources, selectedModes]);
 
   return (
     <div>
