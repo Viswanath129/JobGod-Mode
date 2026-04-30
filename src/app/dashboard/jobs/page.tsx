@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Search,
   Filter,
@@ -142,11 +142,26 @@ export default function JobsPage() {
     setter(arr.includes(item) ? arr.filter((x) => x !== item) : [...arr, item]);
   };
 
-  const filteredJobs = jobs.filter((j) => {
-    if (selectedSources.length > 0 && !selectedSources.includes(j.source)) return false;
-    if (selectedModes.length > 0 && j.workMode && !selectedModes.map(m => m.toLowerCase().replace('-', '_')).includes(j.workMode)) return false;
-    return true;
-  });
+  // ⚡ Bolt Optimization: Memoize filtered jobs and optimize filtering complexity
+  // What: Moved string manipulation out of the filter loop, used Sets for O(1) lookup, and wrapped in useMemo
+  // Why: Prevents creating strings on every iteration and executing O(N*M) array lookups during every render
+  // Impact: Complexity drops from O(N*M) to O(N), drastically reduces memory allocations and garbage collection overhead
+  const filteredJobs = useMemo(() => {
+    const hasSources = selectedSources.length > 0;
+    const hasModes = selectedModes.length > 0;
+
+    // Fast path: no filters
+    if (!hasSources && !hasModes) return jobs;
+
+    const sourceSet = new Set(selectedSources);
+    const modeSet = new Set(selectedModes.map(m => m.toLowerCase().replace('-', '_')));
+
+    return jobs.filter((j) => {
+      if (hasSources && !sourceSet.has(j.source)) return false;
+      if (hasModes && j.workMode && !modeSet.has(j.workMode)) return false;
+      return true;
+    });
+  }, [jobs, selectedSources, selectedModes]);
 
   return (
     <div>
