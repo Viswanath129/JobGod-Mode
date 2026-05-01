@@ -294,9 +294,11 @@ export async function getJobs(filters?: {
     );
   }
 
+  // ⚡ Bolt Optimization: Use Map for O(1) lookups instead of O(n^2) array.find
+  const scoresMap = new Map(store.scores.map(s => [s.jobId, s]));
   const enrichedJobs = jobs.map((j) => ({
     ...j,
-    score: store.scores.find((s) => s.jobId === j.id),
+    score: scoresMap.get(j.id),
   }));
 
   if (filters?.minScore !== undefined) {
@@ -314,6 +316,7 @@ export async function getJob(id: string): Promise<(Job & { score?: JobScore }) |
   const store = await loadLocalStore();
   const job = store.jobs.find((j) => j.id === id);
   if (!job) return null;
+  // O(n) search on scores here is fine since it's just finding one item for one job
   return { ...job, score: store.scores.find((s) => s.jobId === id) };
 }
 
@@ -443,6 +446,11 @@ export async function getApplications(): Promise<Application[]> {
   }
 
   const store = await loadLocalStore();
+
+  // ⚡ Bolt Optimization: Use Maps for O(1) job and resume lookups
+  const jobsMap = new Map(store.jobs.map(j => [j.id, j]));
+  const resumesMap = new Map(store.resumes.map(r => [r.id, r]));
+
   return [...store.applications]
     .sort((a, b) => {
       const aTime = a.appliedAt ? new Date(a.appliedAt).getTime() : 0;
@@ -451,8 +459,8 @@ export async function getApplications(): Promise<Application[]> {
     })
     .map((application) => ({
       ...application,
-      job: store.jobs.find((job) => job.id === application.jobId),
-      resume: store.resumes.find((resume) => resume.id === application.resumeId),
+      job: jobsMap.get(application.jobId),
+      resume: resumesMap.get(application.resumeId),
     }));
 }
 
