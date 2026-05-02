@@ -294,9 +294,15 @@ export async function getJobs(filters?: {
     );
   }
 
+  // ⚡ Bolt: Optimize relational lookup from O(n²) to O(n) using Map for O(1) lookups
+  const scoreMap = new Map<string, JobScore>();
+  for (const s of store.scores) {
+    scoreMap.set(s.jobId, s);
+  }
+
   const enrichedJobs = jobs.map((j) => ({
     ...j,
-    score: store.scores.find((s) => s.jobId === j.id),
+    score: scoreMap.get(j.id),
   }));
 
   if (filters?.minScore !== undefined) {
@@ -443,6 +449,11 @@ export async function getApplications(): Promise<Application[]> {
   }
 
   const store = await loadLocalStore();
+
+  // ⚡ Bolt: Optimize relational lookups from O(n²) to O(n) using Maps for O(1) lookups
+  const jobsMap = new Map(store.jobs.map((job) => [job.id, job]));
+  const resumesMap = new Map(store.resumes.map((resume) => [resume.id, resume]));
+
   return [...store.applications]
     .sort((a, b) => {
       const aTime = a.appliedAt ? new Date(a.appliedAt).getTime() : 0;
@@ -451,8 +462,8 @@ export async function getApplications(): Promise<Application[]> {
     })
     .map((application) => ({
       ...application,
-      job: store.jobs.find((job) => job.id === application.jobId),
-      resume: store.resumes.find((resume) => resume.id === application.resumeId),
+      job: jobsMap.get(application.jobId),
+      resume: resumesMap.get(application.resumeId),
     }));
 }
 
