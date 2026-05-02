@@ -1,0 +1,3 @@
+## 2025-05-02 - O(n²) bottlenecks during relational loops in Map arrays
+**Learning:** The fallback local JSON database architecture causes O(n²) bottlenecks during relational joins when using `Array.find()` inside `Array.map()` operations. In applications lacking proper SQL indices, nested array searches become excessively slow.
+**Action:** Always replace nested `.find()` iterations in array `.map()` structures with O(1) Map lookups when writing relational data operations manually, changing the complexity from O(n²) to O(n).
