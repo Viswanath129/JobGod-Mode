@@ -1,0 +1,3 @@
+## 2024-05-05 - O(n²) Array Find within Map Optimization
+**Learning:** Relational data operations on the local JSON store (`data/store.json`) can easily turn into O(N*M) bottlenecks. For instance, enriching a list of N jobs with M scores by using `Array.prototype.find()` inside a `.map()` callback leads to performance degradation as data scales.
+**Action:** Always pre-compute a `Map` (e.g. `const scoreMap = new Map(store.scores.map(s => [s.jobId, s]))`) before iterating through arrays when resolving relational local store data. This guarantees O(1) lookups and brings the complexity down to O(N+M).
