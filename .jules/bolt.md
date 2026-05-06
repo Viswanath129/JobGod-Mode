@@ -1,0 +1,3 @@
+## 2024-05-06 - Avoid O(n^2) Complexity in JSON Data Operations
+**Learning:** In the local JSON store fallback (`store.ts`), relational data merges like joining jobs with their scores, or applications with jobs and resumes, were using `Array.prototype.find()` inside `Array.prototype.map()`. This created an O(n^2) nested loop bottleneck, which is a specific performance issue for this JSON-based architecture when dealing with larger sets of local data.
+**Action:** Always construct a `Map` from the related data first to achieve O(1) lookups before iterating over the primary array. This reduces the time complexity from O(n^2) to O(n) for relational data mapping.
