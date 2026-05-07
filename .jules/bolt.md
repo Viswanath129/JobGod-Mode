@@ -1,0 +1,3 @@
+## 2024-05-07 - Local JSON Relational Lookup Bottleneck
+**Learning:** In the fallback local database (`data/store.json`), relationships (like finding a score for a job, or a job for an application) were implemented using O(n) `.find()` operations inside an O(n) `.map()` loop, resulting in O(n²) time complexity. As the local JSON store grows, this can cause significant performance degradation when loading the dashboard or jobs list.
+**Action:** When working with local, in-memory data structures for relational data, always pre-compute a `Map` structure for O(1) lookups before iterating over lists that require joining data.
