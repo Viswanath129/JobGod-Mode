@@ -294,9 +294,16 @@ export async function getJobs(filters?: {
     );
   }
 
+  // ⚡ Bolt Optimization: Use Map for O(1) lookups instead of O(n^2) array finds
+  // Expected Impact: Significant speedup when filtering/returning large job lists
+  const scoreMap = new Map<string, JobScore>();
+  for (const s of store.scores) {
+    scoreMap.set(s.jobId, s);
+  }
+
   const enrichedJobs = jobs.map((j) => ({
     ...j,
-    score: store.scores.find((s) => s.jobId === j.id),
+    score: scoreMap.get(j.id),
   }));
 
   if (filters?.minScore !== undefined) {
@@ -443,6 +450,19 @@ export async function getApplications(): Promise<Application[]> {
   }
 
   const store = await loadLocalStore();
+
+  // ⚡ Bolt Optimization: Use Map for O(1) lookups instead of O(n^2) array finds
+  // Expected Impact: Faster rendering of applications list by eliminating double array scans
+  const jobMap = new Map<string, Job>();
+  for (const job of store.jobs) {
+    jobMap.set(job.id, job);
+  }
+
+  const resumeMap = new Map<string, TailoredResume>();
+  for (const resume of store.resumes) {
+    resumeMap.set(resume.id, resume);
+  }
+
   return [...store.applications]
     .sort((a, b) => {
       const aTime = a.appliedAt ? new Date(a.appliedAt).getTime() : 0;
@@ -451,8 +471,8 @@ export async function getApplications(): Promise<Application[]> {
     })
     .map((application) => ({
       ...application,
-      job: store.jobs.find((job) => job.id === application.jobId),
-      resume: store.resumes.find((resume) => resume.id === application.resumeId),
+      job: jobMap.get(application.jobId),
+      resume: resumeMap.get(application.resumeId),
     }));
 }
 
