@@ -1,0 +1,3 @@
+## 2024-05-11 - Local JSON Store Relational Lookup Bottleneck
+**Learning:** The local JSON store fallback (`store.json`) can suffer from O(n²) performance bottlenecks when joining relational data using `Array.prototype.find()` inside `Array.prototype.map()` loops (e.g., matching scores to jobs or jobs/resumes to applications).
+**Action:** Always use `Map` structures for O(1) lookups when performing relational data mapping on the local store arrays to maintain performance as the store grows.
