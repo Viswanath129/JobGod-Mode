@@ -1,0 +1,3 @@
+## 2024-05-24 - Relational Array Finds in Local Store Loop
+**Learning:** In the local JSON store implementation (`store.ts`), lookups for relations like `store.scores.find()` or `store.jobs.find()` inside `.map` loops created hidden O(N*M) bottlenecks. For applications scaling on client-side or fallback storage, this nested iteration rapidly degrades performance compared to expected indexed database lookups.
+**Action:** When handling relational "joins" manually over arrays in JS (especially JSON store fallbacks), always pre-compute an index using `new Map()` before the loop. This converts the operation from O(N*M) to O(N+M) ensuring stable O(1) loop lookups.
