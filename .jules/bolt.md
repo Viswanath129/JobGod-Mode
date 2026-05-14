@@ -1,0 +1,3 @@
+## 2024-05-14 - O(n²) Array Searches in Local Fallback Database
+**Learning:** Found an O(N²) bottleneck in `src/lib/store.ts` when performing relational queries (e.g. mapping `jobs` to their `scores` or `applications` to their `jobs` and `resumes`). The local store is used as a fallback DB but originally used `.find()` inside a `.map()`, causing huge performance hits on large datasets.
+**Action:** When working with local data mimicking relational structures, always extract the related arrays into O(1) Maps (e.g. `new Map(store.scores.map(s => [s.jobId, s]))`) prior to joining them in a map or loop.
