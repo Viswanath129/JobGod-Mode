@@ -321,8 +321,50 @@ export async function addJobs(newJobs: Partial<Job>[]): Promise<Job[]> {
   const store = await loadLocalStore();
   const added: Job[] = [];
 
+  // O(N+M) optimization for duplicate job checking
+  const existingExternalIds = new Set<string>();
+  const existingUrls = new Set<string>();
+  const existingFingerprints = new Set<string>();
+
+  for (const j of store.jobs) {
+    const extId = normalizeIdentity(j.externalId);
+    if (extId) existingExternalIds.add(extId);
+
+    const url = normalizeIdentity(j.url);
+    if (url) existingUrls.add(url);
+
+    const fingerprint = [
+      normalizeIdentity(j.source),
+      normalizeIdentity(j.title),
+      normalizeIdentity(j.company),
+      normalizeIdentity(j.location),
+    ].join("|");
+    if (fingerprint !== "|||") existingFingerprints.add(fingerprint);
+  }
+
   for (const j of newJobs) {
-    if (store.jobs.some((existing) => sameJobIdentity(existing, j))) continue;
+    const extId = normalizeIdentity(j.externalId);
+    const url = normalizeIdentity(j.url);
+    const fingerprint = [
+      normalizeIdentity(j.source),
+      normalizeIdentity(j.title),
+      normalizeIdentity(j.company),
+      normalizeIdentity(j.location),
+    ].join("|");
+
+    if (
+      (extId && existingExternalIds.has(extId)) ||
+      (url && existingUrls.has(url)) ||
+      (fingerprint !== "|||" && existingFingerprints.has(fingerprint))
+    ) {
+      continue;
+    }
+
+    // Add to sets so we don't insert duplicates from within the newJobs array
+    if (extId) existingExternalIds.add(extId);
+    if (url) existingUrls.add(url);
+    if (fingerprint !== "|||") existingFingerprints.add(fingerprint);
+
     const job: Job = {
       id: j.id || crypto.randomUUID(),
       externalId: j.externalId,
