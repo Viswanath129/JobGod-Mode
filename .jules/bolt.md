@@ -1,0 +1,3 @@
+## 2024-05-17 - Avoid O(n^2) N+1 Local Store Array Lookups
+**Learning:** Using `Array.prototype.find()` inside of a map iteration over a different array in `store.ts` leads to $O(n^2)$ lookup bottlenecks that block the main thread, especially as local `store.json` records grow. This happens because our fallback local JSON database lacks the fast indexing of an actual RDBMS.
+**Action:** When performing relational lookups across datasets in local store arrays (like retrieving a `job` or `resume` for a list of `applications`), always instantiate an $O(1)$ `Map` beforehand (`new Map(array.map(i => [i.id, i]))`) instead of repeatedly using `.find()` inside the loop.
