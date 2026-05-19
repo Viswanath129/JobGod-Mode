@@ -1,0 +1,3 @@
+## 2025-02-12 - Optimizing O(N²) Duplicate Checking in Batch Operations
+**Learning:** When using local JSON fallback stores (`data/store.json`), applying duplicate checks during batch insertions (like `addJobs` array looping) via `Array.some()` can lead to severe O(N²) performance bottlenecks on the main thread, especially as the local data store grows.
+**Action:** When implementing uniqueness/deduplication checks during batch insertion logic in next.js local JSON stores, always pre-populate a `Set` (or `Map`) with existing keys to achieve O(1) lookup times. Crucially, dynamically update these sets within the batch loop itself to prevent intra-batch duplicates and keep main thread execution fast.
