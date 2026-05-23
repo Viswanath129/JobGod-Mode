@@ -1,0 +1,3 @@
+## 2024-05-23 - O(n²) Array Search Bottleneck in Database Fallback
+**Learning:** The application uses a local JSON file (`data/store.json`) as a fallback database when Supabase is unavailable. Performing relational data operations like duplicate uniqueness checks using `Array.some()` inside loops causes a massive O(n²) performance bottleneck on the main thread for large datasets, especially when bulk inserting jobs.
+**Action:** Always replace nested loops or `Array.prototype.find/some` during batch operations with `Set` or `Map` data structures for O(1) lookups. Ensure these structures are updated dynamically during iteration to handle duplicates within the incoming batch itself.
