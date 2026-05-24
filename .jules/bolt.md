@@ -1,0 +1,3 @@
+## 2024-05-24 - Array uniqueness bottleneck in Local Store Sync
+**Learning:** Relational database operations running over the local JSON store (`data/store.json`) on the main thread used O(n²) array traversal via `Array.some` to check uniqueness before inserts. As the dataset expands, this drastically bloats processing time and blocks the main thread.
+**Action:** When working on JSON store implementations in this architecture, replace sequential array-scanning uniqueness checks (`some()`, `find()`) inside batches with dynamic Set or Map constructions for O(1) checks. Always update the Sets dynamically during insertion to prevent duplicates occurring within the incoming batch itself.
