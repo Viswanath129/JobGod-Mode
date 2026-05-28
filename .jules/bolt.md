@@ -1,0 +1,3 @@
+## 2024-05-28 - Local Store Uniqueness Check Bottleneck
+**Learning:** Found an O(n²) performance bottleneck in `src/lib/store.ts` within the `addJobs` function. The function used `store.jobs.some((existing) => sameJobIdentity(existing, j))` inside a loop, which checks every new job against all existing jobs, causing blocking on the main thread for large batches of jobs.
+**Action:** Replace `Array.prototype.some` lookup with O(1) `Set` lookups for job uniqueness fields (externalId, url, and fingerprint). Always update the `Set` dynamically within the loop to prevent duplicates in the incoming batch itself.
