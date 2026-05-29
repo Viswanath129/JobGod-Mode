@@ -1,0 +1,3 @@
+## 2024-05-29 - O(1) Lookups in Batch Operations
+**Learning:** Relational lookups with `Array.find()` inside `.map()` loops and duplicates checking with `Array.some()` lead to O(n²) bottlenecks, which can block the main thread and impact frontend responsiveness in this Local JSON DB based app.
+**Action:** When handling collections or batch inserts in `store.ts`, generate `Map` and `Set` structures from arrays first to allow O(1) lookups. When adding records to Sets during batch operations, always add them dynamically inside the loop to catch and discard duplicate records that may exist within the batch itself.
