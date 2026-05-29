@@ -96,6 +96,7 @@ function normalizeIdentity(value?: string | null): string {
   return (value || "").trim().toLowerCase();
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function sameJobIdentity(a: Partial<Job>, b: Partial<Job>): boolean {
   const aExternalId = normalizeIdentity(a.externalId);
   const bExternalId = normalizeIdentity(b.externalId);
@@ -294,9 +295,11 @@ export async function getJobs(filters?: {
     );
   }
 
+  // Bolt: Replace O(N^2) lookups with O(N) map generation and O(1) Map lookups
+  const scoresMap = new Map(store.scores.map(s => [s.jobId, s]));
   const enrichedJobs = jobs.map((j) => ({
     ...j,
-    score: store.scores.find((s) => s.jobId === j.id),
+    score: scoresMap.get(j.id),
   }));
 
   if (filters?.minScore !== undefined) {
@@ -321,8 +324,48 @@ export async function addJobs(newJobs: Partial<Job>[]): Promise<Job[]> {
   const store = await loadLocalStore();
   const added: Job[] = [];
 
+  // Bolt: Optimize O(N*M) uniqueness check to O(N+M) with Set lookups
+  const externalIds = new Set(store.jobs.map(j => normalizeIdentity(j.externalId)).filter(Boolean));
+  const urls = new Set(store.jobs.map(j => normalizeIdentity(j.url)).filter(Boolean));
+  const fingerprints = new Set(
+    store.jobs.map(j => {
+      const source = normalizeIdentity(j.source);
+      const title = normalizeIdentity(j.title);
+      const company = normalizeIdentity(j.company);
+      const location = normalizeIdentity(j.location);
+      if (source && title && company && location) {
+        return [source, title, company, location].join("|");
+      }
+      return "";
+    }).filter(Boolean)
+  );
+
   for (const j of newJobs) {
-    if (store.jobs.some((existing) => sameJobIdentity(existing, j))) continue;
+    const jExternalId = normalizeIdentity(j.externalId);
+    const jUrl = normalizeIdentity(j.url);
+    const source = normalizeIdentity(j.source);
+    const title = normalizeIdentity(j.title);
+    const company = normalizeIdentity(j.company);
+    const location = normalizeIdentity(j.location);
+    let jFingerprint = "";
+    if (source && title && company && location) {
+      jFingerprint = [source, title, company, location].join("|");
+    }
+
+    // Check if it already exists
+    if (
+      (jExternalId && externalIds.has(jExternalId)) ||
+      (jUrl && urls.has(jUrl)) ||
+      (jFingerprint && fingerprints.has(jFingerprint))
+    ) {
+      continue;
+    }
+
+    // Add to sets dynamically to handle duplicates inside the batch itself
+    if (jExternalId) externalIds.add(jExternalId);
+    if (jUrl) urls.add(jUrl);
+    if (jFingerprint) fingerprints.add(jFingerprint);
+
     const job: Job = {
       id: j.id || crypto.randomUUID(),
       externalId: j.externalId,
@@ -443,6 +486,10 @@ export async function getApplications(): Promise<Application[]> {
   }
 
   const store = await loadLocalStore();
+  // Bolt: Replace O(N^2) lookups with O(N) map generation and O(1) Map lookups
+  const jobsMap = new Map(store.jobs.map(j => [j.id, j]));
+  const resumesMap = new Map(store.resumes.map(r => [r.id, r]));
+
   return [...store.applications]
     .sort((a, b) => {
       const aTime = a.appliedAt ? new Date(a.appliedAt).getTime() : 0;
@@ -451,8 +498,8 @@ export async function getApplications(): Promise<Application[]> {
     })
     .map((application) => ({
       ...application,
-      job: store.jobs.find((job) => job.id === application.jobId),
-      resume: store.resumes.find((resume) => resume.id === application.resumeId),
+      job: jobsMap.get(application.jobId),
+      resume: resumesMap.get(application.resumeId),
     }));
 }
 
