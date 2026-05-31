@@ -96,6 +96,15 @@ function normalizeIdentity(value?: string | null): string {
   return (value || "").trim().toLowerCase();
 }
 
+function getJobFingerprint(job: Partial<Job>): string {
+  return [
+    normalizeIdentity(job.source),
+    normalizeIdentity(job.title),
+    normalizeIdentity(job.company),
+    normalizeIdentity(job.location),
+  ].join("|");
+}
+
 function sameJobIdentity(a: Partial<Job>, b: Partial<Job>): boolean {
   const aExternalId = normalizeIdentity(a.externalId);
   const bExternalId = normalizeIdentity(b.externalId);
@@ -109,18 +118,8 @@ function sameJobIdentity(a: Partial<Job>, b: Partial<Job>): boolean {
     return true;
   }
 
-  const aFingerprint = [
-    normalizeIdentity(a.source),
-    normalizeIdentity(a.title),
-    normalizeIdentity(a.company),
-    normalizeIdentity(a.location),
-  ].join("|");
-  const bFingerprint = [
-    normalizeIdentity(b.source),
-    normalizeIdentity(b.title),
-    normalizeIdentity(b.company),
-    normalizeIdentity(b.location),
-  ].join("|");
+  const aFingerprint = getJobFingerprint(a);
+  const bFingerprint = getJobFingerprint(b);
 
   return aFingerprint === bFingerprint && aFingerprint !== "|||";
 }
@@ -294,9 +293,15 @@ export async function getJobs(filters?: {
     );
   }
 
+  // Use a Map for O(1) score lookups
+  const scoreMap = new Map<string, JobScore>();
+  for (const score of store.scores) {
+    scoreMap.set(score.jobId, score);
+  }
+
   const enrichedJobs = jobs.map((j) => ({
     ...j,
-    score: store.scores.find((s) => s.jobId === j.id),
+    score: scoreMap.get(j.id),
   }));
 
   if (filters?.minScore !== undefined) {
@@ -321,8 +326,40 @@ export async function addJobs(newJobs: Partial<Job>[]): Promise<Job[]> {
   const store = await loadLocalStore();
   const added: Job[] = [];
 
+  // O(1) lookups for duplicate checking
+  const externalIds = new Set<string>();
+  const urls = new Set<string>();
+  const fingerprints = new Set<string>();
+
+  // Pre-fill sets with existing jobs
+  for (const existingJob of store.jobs) {
+    const extId = normalizeIdentity(existingJob.externalId);
+    if (extId) externalIds.add(extId);
+
+    const url = normalizeIdentity(existingJob.url);
+    if (url) urls.add(url);
+
+    const fingerprint = getJobFingerprint(existingJob);
+    if (fingerprint !== "|||") fingerprints.add(fingerprint);
+  }
+
   for (const j of newJobs) {
-    if (store.jobs.some((existing) => sameJobIdentity(existing, j))) continue;
+    const jExtId = normalizeIdentity(j.externalId);
+    const jUrl = normalizeIdentity(j.url);
+    const jFingerprint = getJobFingerprint(j);
+
+    const isDuplicate =
+      (jExtId && externalIds.has(jExtId)) ||
+      (jUrl && urls.has(jUrl)) ||
+      (jFingerprint !== "|||" && fingerprints.has(jFingerprint));
+
+    if (isDuplicate) continue;
+
+    // Add to sets to prevent duplicates within the batch itself
+    if (jExtId) externalIds.add(jExtId);
+    if (jUrl) urls.add(jUrl);
+    if (jFingerprint !== "|||") fingerprints.add(jFingerprint);
+
     const job: Job = {
       id: j.id || crypto.randomUUID(),
       externalId: j.externalId,
@@ -443,6 +480,18 @@ export async function getApplications(): Promise<Application[]> {
   }
 
   const store = await loadLocalStore();
+
+  // Use Maps for O(1) lookups
+  const jobMap = new Map<string, Job>();
+  for (const job of store.jobs) {
+    jobMap.set(job.id, job);
+  }
+
+  const resumeMap = new Map<string, TailoredResume>();
+  for (const resume of store.resumes) {
+    resumeMap.set(resume.id, resume);
+  }
+
   return [...store.applications]
     .sort((a, b) => {
       const aTime = a.appliedAt ? new Date(a.appliedAt).getTime() : 0;
@@ -451,8 +500,8 @@ export async function getApplications(): Promise<Application[]> {
     })
     .map((application) => ({
       ...application,
-      job: store.jobs.find((job) => job.id === application.jobId),
-      resume: store.resumes.find((resume) => resume.id === application.resumeId),
+      job: jobMap.get(application.jobId),
+      resume: resumeMap.get(application.resumeId),
     }));
 }
 
