@@ -1,0 +1,3 @@
+## 2024-05-31 - Local Store O(n²) Array Search Optimization
+**Learning:** Found an architectural bottleneck where the local database fallback (`src/lib/store.ts`) iterates over data arrays internally while performing outer loops or map operations (e.g. `addJobs`, `getJobs`, `getApplications`). This led to O(n²) bottlenecks on the main thread for common operations. Using `.some` and `.find` in `addJobs` can be especially harmful as the batch data being appended wasn't efficiently checked for inner-batch duplicates without dynamic Sets.
+**Action:** Replace `.find` and `.some` inside `.map` and `for` loops with pre-constructed `Map`s and `Set`s for O(1) lookups whenever performing local store joins or duplicate filtering. Update dynamic Sets during iterations.
