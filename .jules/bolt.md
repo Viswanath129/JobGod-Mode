@@ -1,0 +1,3 @@
+## 2024-06-01 - [O(1) Duplicate Jobs Check Optimization]
+**Learning:** The application architecture uses a local JSON file (`data/store.json`) as a database fallback when Supabase is unavailable. Because `addJobs` processes batches of jobs, checking for duplicate jobs inside the loop over `store.jobs` caused an O(n²) bottleneck on the main thread.
+**Action:** When working with the local JSON store for duplicate checks on batches of data, always use `Set` or `Map` structures built before the loop for O(1) lookups to avoid O(n²) bottlenecks, and update them dynamically during batch processing to avoid duplicates within the batch itself.
