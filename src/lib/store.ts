@@ -96,35 +96,6 @@ function normalizeIdentity(value?: string | null): string {
   return (value || "").trim().toLowerCase();
 }
 
-function sameJobIdentity(a: Partial<Job>, b: Partial<Job>): boolean {
-  const aExternalId = normalizeIdentity(a.externalId);
-  const bExternalId = normalizeIdentity(b.externalId);
-  if (aExternalId && bExternalId && aExternalId === bExternalId) {
-    return true;
-  }
-
-  const aUrl = normalizeIdentity(a.url);
-  const bUrl = normalizeIdentity(b.url);
-  if (aUrl && bUrl && aUrl === bUrl) {
-    return true;
-  }
-
-  const aFingerprint = [
-    normalizeIdentity(a.source),
-    normalizeIdentity(a.title),
-    normalizeIdentity(a.company),
-    normalizeIdentity(a.location),
-  ].join("|");
-  const bFingerprint = [
-    normalizeIdentity(b.source),
-    normalizeIdentity(b.title),
-    normalizeIdentity(b.company),
-    normalizeIdentity(b.location),
-  ].join("|");
-
-  return aFingerprint === bFingerprint && aFingerprint !== "|||";
-}
-
 async function loadLocalStore(): Promise<Store> {
   try {
     try {
@@ -321,8 +292,50 @@ export async function addJobs(newJobs: Partial<Job>[]): Promise<Job[]> {
   const store = await loadLocalStore();
   const added: Job[] = [];
 
+  // ⚡ Bolt Optimization: Replace O(N*M) array iteration with O(1) Set lookups
+  // Impact: Reduces time complexity of uniqueness check from O(N*M) to O(N+M)
+  // Measurement: Significant reduction in main thread blocking when adding large job batches
+  const existingExternalIds = new Set<string>();
+  const existingUrls = new Set<string>();
+  const existingFingerprints = new Set<string>();
+
+  for (const job of store.jobs) {
+    const extId = normalizeIdentity(job.externalId);
+    if (extId) existingExternalIds.add(extId);
+
+    const url = normalizeIdentity(job.url);
+    if (url) existingUrls.add(url);
+
+    const fingerprint = [
+      normalizeIdentity(job.source),
+      normalizeIdentity(job.title),
+      normalizeIdentity(job.company),
+      normalizeIdentity(job.location),
+    ].join("|");
+    if (fingerprint !== "|||") existingFingerprints.add(fingerprint);
+  }
+
   for (const j of newJobs) {
-    if (store.jobs.some((existing) => sameJobIdentity(existing, j))) continue;
+    const extId = normalizeIdentity(j.externalId);
+    const url = normalizeIdentity(j.url);
+    const fingerprint = [
+      normalizeIdentity(j.source),
+      normalizeIdentity(j.title),
+      normalizeIdentity(j.company),
+      normalizeIdentity(j.location),
+    ].join("|");
+
+    let isDuplicate = false;
+    if (extId && existingExternalIds.has(extId)) isDuplicate = true;
+    else if (url && existingUrls.has(url)) isDuplicate = true;
+    else if (fingerprint !== "|||" && existingFingerprints.has(fingerprint)) isDuplicate = true;
+
+    if (isDuplicate) continue;
+
+    if (extId) existingExternalIds.add(extId);
+    if (url) existingUrls.add(url);
+    if (fingerprint !== "|||") existingFingerprints.add(fingerprint);
+
     const job: Job = {
       id: j.id || crypto.randomUUID(),
       externalId: j.externalId,
