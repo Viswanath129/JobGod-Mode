@@ -1,0 +1,3 @@
+## 2024-05-24 - O(N²) Job Uniqueness Bottleneck
+**Learning:** Checking for duplicate jobs when adding new batches using `.some()` and a custom `sameJobIdentity` function iterates over the entire job store for every new job. This causes an O(N*M) time complexity bottleneck (effectively O(N²) for large data), blocking the main thread significantly as the number of stored jobs grows.
+**Action:** Use `Set` data structures to pre-calculate existing job identities (external IDs, URLs, and custom fingerprints) in a single O(N) pass. Then, use these Sets to verify the uniqueness of new jobs in O(1) time per job, dynamically adding valid new jobs to the Sets during the batch operation to catch duplicates within the batch itself. This reduces the complexity to O(N+M).
