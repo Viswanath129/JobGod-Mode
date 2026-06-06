@@ -1,0 +1,3 @@
+## 2024-05-24 - O(n²) Array Bottlenecks in Local JSON Store
+**Learning:** The application's fallback database (`src/lib/store.ts`) relies on array operations (`.find`, `.some`) to manage relational data and duplicate checks. When iterating over batch operations (like `addJobs` receiving multiple jobs), checking duplicates against the entire `store.jobs` array on every iteration creates an O(n²) main-thread bottleneck.
+**Action:** Always replace `.find()` inside `.map()` with `Map` lookups, and use dynamically updated `Set` lookups for uniqueness checks instead of `.some()` to achieve O(1) time complexity. Ensure Sets are updated within the loop to catch intra-batch duplicates.

@@ -294,9 +294,15 @@ export async function getJobs(filters?: {
     );
   }
 
+  // ⚡ Bolt: Optimize related data lookup to O(1) using Map.
+  const scoreMap = new Map<string, JobScore>();
+  for (const s of store.scores) {
+    scoreMap.set(s.jobId, s);
+  }
+
   const enrichedJobs = jobs.map((j) => ({
     ...j,
-    score: store.scores.find((s) => s.jobId === j.id),
+    score: scoreMap.get(j.id),
   }));
 
   if (filters?.minScore !== undefined) {
@@ -321,8 +327,49 @@ export async function addJobs(newJobs: Partial<Job>[]): Promise<Job[]> {
   const store = await loadLocalStore();
   const added: Job[] = [];
 
+  // ⚡ Bolt: Optimize duplicate check to O(1) using Sets. Reduces main thread blocking.
+  const externalIds = new Set<string>();
+  const urls = new Set<string>();
+  const fingerprints = new Set<string>();
+
+  for (const existing of store.jobs) {
+    const extId = normalizeIdentity(existing.externalId);
+    if (extId) externalIds.add(extId);
+
+    const url = normalizeIdentity(existing.url);
+    if (url) urls.add(url);
+
+    const fingerprint = [
+      normalizeIdentity(existing.source),
+      normalizeIdentity(existing.title),
+      normalizeIdentity(existing.company),
+      normalizeIdentity(existing.location),
+    ].join("|");
+    if (fingerprint !== "|||") fingerprints.add(fingerprint);
+  }
+
   for (const j of newJobs) {
-    if (store.jobs.some((existing) => sameJobIdentity(existing, j))) continue;
+    const jExtId = normalizeIdentity(j.externalId);
+    const jUrl = normalizeIdentity(j.url);
+    const jFingerprint = [
+      normalizeIdentity(j.source),
+      normalizeIdentity(j.title),
+      normalizeIdentity(j.company),
+      normalizeIdentity(j.location),
+    ].join("|");
+
+    const isDuplicate =
+      (jExtId && externalIds.has(jExtId)) ||
+      (jUrl && urls.has(jUrl)) ||
+      (jFingerprint !== "|||" && fingerprints.has(jFingerprint));
+
+    if (isDuplicate) continue;
+
+    // Dynamically update sets to prevent duplicates within the batch
+    if (jExtId) externalIds.add(jExtId);
+    if (jUrl) urls.add(jUrl);
+    if (jFingerprint !== "|||") fingerprints.add(jFingerprint);
+
     const job: Job = {
       id: j.id || crypto.randomUUID(),
       externalId: j.externalId,
@@ -443,6 +490,18 @@ export async function getApplications(): Promise<Application[]> {
   }
 
   const store = await loadLocalStore();
+
+  // ⚡ Bolt: Optimize related data lookup to O(1) using Maps.
+  const jobMap = new Map<string, Job>();
+  for (const j of store.jobs) {
+    jobMap.set(j.id, j);
+  }
+
+  const resumeMap = new Map<string, TailoredResume>();
+  for (const r of store.resumes) {
+    resumeMap.set(r.id, r);
+  }
+
   return [...store.applications]
     .sort((a, b) => {
       const aTime = a.appliedAt ? new Date(a.appliedAt).getTime() : 0;
@@ -451,8 +510,8 @@ export async function getApplications(): Promise<Application[]> {
     })
     .map((application) => ({
       ...application,
-      job: store.jobs.find((job) => job.id === application.jobId),
-      resume: store.resumes.find((resume) => resume.id === application.resumeId),
+      job: jobMap.get(application.jobId),
+      resume: resumeMap.get(application.resumeId),
     }));
 }
 
