@@ -294,9 +294,12 @@ export async function getJobs(filters?: {
     );
   }
 
+  // ⚡ Bolt: Use Map for O(1) score lookup instead of O(n) find
+  const scoreMap = new Map(store.scores.map(s => [s.jobId, s]));
+
   const enrichedJobs = jobs.map((j) => ({
     ...j,
-    score: store.scores.find((s) => s.jobId === j.id),
+    score: scoreMap.get(j.id),
   }));
 
   if (filters?.minScore !== undefined) {
@@ -321,8 +324,49 @@ export async function addJobs(newJobs: Partial<Job>[]): Promise<Job[]> {
   const store = await loadLocalStore();
   const added: Job[] = [];
 
+  // ⚡ Bolt: O(1) lookups using Sets to prevent O(N^2) duplicate checking
+  const existingExternalIds = new Set<string>();
+  const existingUrls = new Set<string>();
+  const existingFingerprints = new Set<string>();
+
+  for (const job of store.jobs) {
+    const extId = normalizeIdentity(job.externalId);
+    if (extId) existingExternalIds.add(extId);
+
+    const url = normalizeIdentity(job.url);
+    if (url) existingUrls.add(url);
+
+    const fingerprint = [
+      normalizeIdentity(job.source),
+      normalizeIdentity(job.title),
+      normalizeIdentity(job.company),
+      normalizeIdentity(job.location),
+    ].join("|");
+    if (fingerprint !== "|||") existingFingerprints.add(fingerprint);
+  }
+
   for (const j of newJobs) {
-    if (store.jobs.some((existing) => sameJobIdentity(existing, j))) continue;
+    const jExtId = normalizeIdentity(j.externalId);
+    const jUrl = normalizeIdentity(j.url);
+    const jFingerprint = [
+      normalizeIdentity(j.source),
+      normalizeIdentity(j.title),
+      normalizeIdentity(j.company),
+      normalizeIdentity(j.location),
+    ].join("|");
+
+    if (
+      (jExtId && existingExternalIds.has(jExtId)) ||
+      (jUrl && existingUrls.has(jUrl)) ||
+      (jFingerprint !== "|||" && existingFingerprints.has(jFingerprint))
+    ) {
+      continue;
+    }
+
+    if (jExtId) existingExternalIds.add(jExtId);
+    if (jUrl) existingUrls.add(jUrl);
+    if (jFingerprint !== "|||") existingFingerprints.add(jFingerprint);
+
     const job: Job = {
       id: j.id || crypto.randomUUID(),
       externalId: j.externalId,
