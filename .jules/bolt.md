@@ -1,0 +1,3 @@
+## 2025-02-18 - Optimize Duplicate Job Checks for Local Fallback JSON Store
+**Learning:** The application architecture uses a local JSON file as a fallback database, updating state using in-memory arrays and `.some` loops. This causes severe O(n²) bottlenecks on the main thread during batch updates like `addJobs`. Simply pre-computing Sets before the loop is not enough, as we also need to prevent duplicates *within* the batch by dynamically updating these Sets.
+**Action:** Always replace nested `.some()` or `.find()` loops over large datasets with `Map` or `Set` initialized once before the loop (O(1)). In batch inserts, remember to dynamically update the `Set` with the new valid entries to prevent duplicating items that occur multiple times within the batch itself.
