@@ -96,35 +96,6 @@ function normalizeIdentity(value?: string | null): string {
   return (value || "").trim().toLowerCase();
 }
 
-function sameJobIdentity(a: Partial<Job>, b: Partial<Job>): boolean {
-  const aExternalId = normalizeIdentity(a.externalId);
-  const bExternalId = normalizeIdentity(b.externalId);
-  if (aExternalId && bExternalId && aExternalId === bExternalId) {
-    return true;
-  }
-
-  const aUrl = normalizeIdentity(a.url);
-  const bUrl = normalizeIdentity(b.url);
-  if (aUrl && bUrl && aUrl === bUrl) {
-    return true;
-  }
-
-  const aFingerprint = [
-    normalizeIdentity(a.source),
-    normalizeIdentity(a.title),
-    normalizeIdentity(a.company),
-    normalizeIdentity(a.location),
-  ].join("|");
-  const bFingerprint = [
-    normalizeIdentity(b.source),
-    normalizeIdentity(b.title),
-    normalizeIdentity(b.company),
-    normalizeIdentity(b.location),
-  ].join("|");
-
-  return aFingerprint === bFingerprint && aFingerprint !== "|||";
-}
-
 async function loadLocalStore(): Promise<Store> {
   try {
     try {
@@ -321,8 +292,35 @@ export async function addJobs(newJobs: Partial<Job>[]): Promise<Job[]> {
   const store = await loadLocalStore();
   const added: Job[] = [];
 
+  // O(1) Optimization: Use Sets for faster duplicate lookups
+  const externalIds = new Set<string>();
+  const urls = new Set<string>();
+  const fingerprints = new Set<string>();
+
+  const addIdentityToSets = (j: Partial<Job>) => {
+    const extId = normalizeIdentity(j.externalId);
+    if (extId) externalIds.add(extId);
+
+    const url = normalizeIdentity(j.url);
+    if (url) urls.add(url);
+
+    const fp = [normalizeIdentity(j.source), normalizeIdentity(j.title), normalizeIdentity(j.company), normalizeIdentity(j.location)].join("|");
+    if (fp !== "|||") fingerprints.add(fp);
+  };
+
+  store.jobs.forEach(addIdentityToSets);
+
   for (const j of newJobs) {
-    if (store.jobs.some((existing) => sameJobIdentity(existing, j))) continue;
+    const extId = normalizeIdentity(j.externalId);
+    const url = normalizeIdentity(j.url);
+    const fp = [normalizeIdentity(j.source), normalizeIdentity(j.title), normalizeIdentity(j.company), normalizeIdentity(j.location)].join("|");
+
+    if ((extId && externalIds.has(extId)) || (url && urls.has(url)) || (fp !== "|||" && fingerprints.has(fp))) {
+      continue;
+    }
+
+    addIdentityToSets(j);
+
     const job: Job = {
       id: j.id || crypto.randomUUID(),
       externalId: j.externalId,
