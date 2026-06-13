@@ -1,0 +1,3 @@
+## 2024-06-13 - Local Store Duplicate Filtering Optimization
+**Learning:** Checking for duplicates against a local JSON file (`store.json`) using `store.jobs.some(existing => sameJobIdentity(existing, j))` in a loop creates an O(n^2) bottleneck. Since the store runs in the main thread (node/next server process), a large dataset combined with a large batch of new jobs can cause event loop blocking.
+**Action:** Always pre-compute a `Set` or `Map` of existing identifiers (e.g. fingerprint, url, externalId) to reduce the complexity to O(n) lookups. In batch insert processes, dynamically update this set to handle duplicates within the batch itself.

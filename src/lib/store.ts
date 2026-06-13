@@ -321,8 +321,51 @@ export async function addJobs(newJobs: Partial<Job>[]): Promise<Job[]> {
   const store = await loadLocalStore();
   const added: Job[] = [];
 
+  // ⚡ Optimization: O(1) job uniqueness check using Sets instead of O(n) array lookup
+  // This turns O(N * M) into O(N + M) complexity and scales better for large data stores
+  const existingExternalIds = new Set<string>();
+  const existingUrls = new Set<string>();
+  const existingFingerprints = new Set<string>();
+
+  for (const job of store.jobs) {
+    const extId = normalizeIdentity(job.externalId);
+    if (extId) existingExternalIds.add(extId);
+
+    const url = normalizeIdentity(job.url);
+    if (url) existingUrls.add(url);
+
+    const fingerprint = [
+      normalizeIdentity(job.source),
+      normalizeIdentity(job.title),
+      normalizeIdentity(job.company),
+      normalizeIdentity(job.location),
+    ].join("|");
+    if (fingerprint !== "|||") existingFingerprints.add(fingerprint);
+  }
+
   for (const j of newJobs) {
-    if (store.jobs.some((existing) => sameJobIdentity(existing, j))) continue;
+    const extId = normalizeIdentity(j.externalId);
+    const url = normalizeIdentity(j.url);
+    const fingerprint = [
+      normalizeIdentity(j.source),
+      normalizeIdentity(j.title),
+      normalizeIdentity(j.company),
+      normalizeIdentity(j.location),
+    ].join("|");
+
+    if (
+      (extId && existingExternalIds.has(extId)) ||
+      (url && existingUrls.has(url)) ||
+      (fingerprint !== "|||" && existingFingerprints.has(fingerprint))
+    ) {
+      continue;
+    }
+
+    // Add to sets dynamically to prevent duplicate jobs within the same batch
+    if (extId) existingExternalIds.add(extId);
+    if (url) existingUrls.add(url);
+    if (fingerprint !== "|||") existingFingerprints.add(fingerprint);
+
     const job: Job = {
       id: j.id || crypto.randomUUID(),
       externalId: j.externalId,
