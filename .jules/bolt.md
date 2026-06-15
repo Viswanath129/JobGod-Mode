@@ -1,0 +1,3 @@
+## 2024-06-15 - Array method bottlenecks in local JSON store operations
+**Learning:** Using O(n) array methods like `.find()` inside a loop (in `getJobs`) and `.some()` for duplicate checking (in `addJobs`) creates severe O(n²) bottlenecks on the main thread when manipulating data from the local JSON store (`store.json`).
+**Action:** When operating on relational data or enforcing unique constraints in the local fallback store, always utilize `Map` for O(1) relational lookups and `Set` for duplicate detection. Crucially, update these structures dynamically during batch operations to detect and prevent duplicates within the batch itself.
