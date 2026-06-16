@@ -1,0 +1,3 @@
+## 2024-06-16 - O(n²) Bottleneck in Local Store Uniqueness Checks
+**Learning:** Checking for duplicate jobs during batch inserts (`addJobs`) using `Array.prototype.some` and a complex comparator (`sameJobIdentity`) causes an O(N*M) performance bottleneck on the main thread, especially because it runs synchronously for each new job against the entire local JSON store.
+**Action:** Replace nested loops for uniqueness checks with O(1) lookups using `Set` data structures. Build sets for each uniqueness criterion (e.g., `externalId`, `url`, `fingerprint`) before the loop, and update them dynamically during batch processing to prevent intra-batch duplicates.
