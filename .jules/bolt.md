@@ -1,0 +1,4 @@
+
+## 2024-05-18 - Optimized Local Fallback Data Store O(N^2) Bottleneck
+**Learning:** The application uses a local `data/store.json` file as a fallback database when Supabase is unavailable. The function `addJobs` previously checked for duplicate insertions by looping through existing jobs and evaluating a heavy `sameJobIdentity` comparison for every new job in an `O(N^2)` manner. This is problematic since local JSON sizes can grow unbounded, unlike SQL databases that would inherently enforce uniqueness via indexed columns.
+**Action:** Always prefer `Map` or `Set` initialized outside the loop (`O(N)`) to perform `O(1)` membership lookups for duplicate checks within loops. Moreover, when processing arrays in batches, dynamically add new entries to the `Map`/`Set` within the loop to correctly capture duplicate cases internal to the batch itself.
