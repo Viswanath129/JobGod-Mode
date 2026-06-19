@@ -1,0 +1,3 @@
+## 2026-06-19 - Duplicate Uniqueness Check O(n²) bottleneck
+**Learning:** Relational operations such as deduplication and uniqueness checks against local `store.json` arrays shouldn't be done on the main thread via nested loops when data grows, as it blocks the main thread. Specifically, `sameJobIdentity` comparison against an ever growing list of jobs caused O(n²) bottlenecks.
+**Action:** Use pre-computed Set/Map structures for O(1) duplicate lookups inside batch insert operations. Ensure that newly inserted items are dynamically added to the sets during batch insert so duplicates within the batch are correctly caught.
