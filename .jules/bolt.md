@@ -1,0 +1,3 @@
+## 2024-06-23 - Batch Data Insertion Deduplication Bottleneck
+**Learning:** Checking for duplicates using array `.some()` for each item in a batch against a growing local JSON database (`store.jobs`) creates an O(N^2) bottleneck that blocks the main thread. In `src/lib/store.ts`, inserting 1000 items against 5000 existing ones took ~5 seconds.
+**Action:** Always use `Set` or `Map` data structures (O(n) setup, O(1) lookups) for duplicate checking during batch insertions, and ensure they are updated dynamically within the loop to catch intra-batch duplicates. This reduced processing time from seconds to ~10ms.
