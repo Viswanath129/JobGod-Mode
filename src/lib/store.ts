@@ -96,34 +96,6 @@ function normalizeIdentity(value?: string | null): string {
   return (value || "").trim().toLowerCase();
 }
 
-function sameJobIdentity(a: Partial<Job>, b: Partial<Job>): boolean {
-  const aExternalId = normalizeIdentity(a.externalId);
-  const bExternalId = normalizeIdentity(b.externalId);
-  if (aExternalId && bExternalId && aExternalId === bExternalId) {
-    return true;
-  }
-
-  const aUrl = normalizeIdentity(a.url);
-  const bUrl = normalizeIdentity(b.url);
-  if (aUrl && bUrl && aUrl === bUrl) {
-    return true;
-  }
-
-  const aFingerprint = [
-    normalizeIdentity(a.source),
-    normalizeIdentity(a.title),
-    normalizeIdentity(a.company),
-    normalizeIdentity(a.location),
-  ].join("|");
-  const bFingerprint = [
-    normalizeIdentity(b.source),
-    normalizeIdentity(b.title),
-    normalizeIdentity(b.company),
-    normalizeIdentity(b.location),
-  ].join("|");
-
-  return aFingerprint === bFingerprint && aFingerprint !== "|||";
-}
 
 async function loadLocalStore(): Promise<Store> {
   try {
@@ -321,8 +293,26 @@ export async function addJobs(newJobs: Partial<Job>[]): Promise<Job[]> {
   const store = await loadLocalStore();
   const added: Job[] = [];
 
+  // O(1) lookups for uniqueness to prevent O(n²) bottleneck
+  const existingExternalIds = new Set(store.jobs.map(j => normalizeIdentity(j.externalId)).filter(Boolean));
+  const existingUrls = new Set(store.jobs.map(j => normalizeIdentity(j.url)).filter(Boolean));
+  const existingFp = new Set(store.jobs.map(j => [normalizeIdentity(j.source), normalizeIdentity(j.title), normalizeIdentity(j.company), normalizeIdentity(j.location)].join("|")).filter(fp => fp !== "|||"));
+
   for (const j of newJobs) {
-    if (store.jobs.some((existing) => sameJobIdentity(existing, j))) continue;
+    const extId = normalizeIdentity(j.externalId);
+    if (extId && existingExternalIds.has(extId)) continue;
+
+    const url = normalizeIdentity(j.url);
+    if (url && existingUrls.has(url)) continue;
+
+    const fp = [normalizeIdentity(j.source), normalizeIdentity(j.title), normalizeIdentity(j.company), normalizeIdentity(j.location)].join("|");
+    if (fp !== "|||" && existingFp.has(fp)) continue;
+
+    // Add to sets to prevent in-batch duplicates
+    if (extId) existingExternalIds.add(extId);
+    if (url) existingUrls.add(url);
+    if (fp !== "|||") existingFp.add(fp);
+
     const job: Job = {
       id: j.id || crypto.randomUUID(),
       externalId: j.externalId,
