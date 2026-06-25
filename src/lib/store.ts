@@ -321,8 +321,49 @@ export async function addJobs(newJobs: Partial<Job>[]): Promise<Job[]> {
   const store = await loadLocalStore();
   const added: Job[] = [];
 
+  // O(1) lookup sets to avoid O(n^2) bottleneck when adding batch jobs
+  const externalIds = new Set<string>();
+  const urls = new Set<string>();
+  const fingerprints = new Set<string>();
+
+  for (const job of store.jobs) {
+    const extId = normalizeIdentity(job.externalId);
+    if (extId) externalIds.add(extId);
+
+    const url = normalizeIdentity(job.url);
+    if (url) urls.add(url);
+
+    const fp = [
+      normalizeIdentity(job.source),
+      normalizeIdentity(job.title),
+      normalizeIdentity(job.company),
+      normalizeIdentity(job.location),
+    ].join("|");
+    if (fp !== "|||") fingerprints.add(fp);
+  }
+
   for (const j of newJobs) {
-    if (store.jobs.some((existing) => sameJobIdentity(existing, j))) continue;
+    const jExtId = normalizeIdentity(j.externalId);
+    const jUrl = normalizeIdentity(j.url);
+    const jFp = [
+      normalizeIdentity(j.source),
+      normalizeIdentity(j.title),
+      normalizeIdentity(j.company),
+      normalizeIdentity(j.location),
+    ].join("|");
+
+    if (
+      (jExtId && externalIds.has(jExtId)) ||
+      (jUrl && urls.has(jUrl)) ||
+      (jFp !== "|||" && fingerprints.has(jFp))
+    ) {
+      continue;
+    }
+
+    if (jExtId) externalIds.add(jExtId);
+    if (jUrl) urls.add(jUrl);
+    if (jFp !== "|||") fingerprints.add(jFp);
+
     const job: Job = {
       id: j.id || crypto.randomUUID(),
       externalId: j.externalId,
