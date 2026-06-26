@@ -1,0 +1,3 @@
+## 2024-06-26 - O(n²) Fallback Bottleneck in Local Store Sync
+**Learning:** The application uses a local JSON file (`data/store.json`) as a fallback database when Supabase is unavailable. During batch inserts (e.g., `addJobs`), checking for duplicates using an array method like `store.jobs.some(...)` creates an O(n²) bottleneck on the main thread, severely degrading performance when the local store grows.
+**Action:** When performing relational or duplicate checks against the local store fallback, always map the existing store items into `Set` or `Map` structures first to enable O(1) lookups, and ensure these structures are updated synchronously during the batch loop to catch duplicates within the batch itself.
