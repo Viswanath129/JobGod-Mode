@@ -96,35 +96,6 @@ function normalizeIdentity(value?: string | null): string {
   return (value || "").trim().toLowerCase();
 }
 
-function sameJobIdentity(a: Partial<Job>, b: Partial<Job>): boolean {
-  const aExternalId = normalizeIdentity(a.externalId);
-  const bExternalId = normalizeIdentity(b.externalId);
-  if (aExternalId && bExternalId && aExternalId === bExternalId) {
-    return true;
-  }
-
-  const aUrl = normalizeIdentity(a.url);
-  const bUrl = normalizeIdentity(b.url);
-  if (aUrl && bUrl && aUrl === bUrl) {
-    return true;
-  }
-
-  const aFingerprint = [
-    normalizeIdentity(a.source),
-    normalizeIdentity(a.title),
-    normalizeIdentity(a.company),
-    normalizeIdentity(a.location),
-  ].join("|");
-  const bFingerprint = [
-    normalizeIdentity(b.source),
-    normalizeIdentity(b.title),
-    normalizeIdentity(b.company),
-    normalizeIdentity(b.location),
-  ].join("|");
-
-  return aFingerprint === bFingerprint && aFingerprint !== "|||";
-}
-
 async function loadLocalStore(): Promise<Store> {
   try {
     try {
@@ -294,9 +265,16 @@ export async function getJobs(filters?: {
     );
   }
 
+  // ⚡ Bolt Optimization: Use Map for O(1) score lookups instead of O(n) array.find() inside map()
+  // Reduces getJobs complexity from O(n^2) to O(n)
+  const scoreMap = new Map<string, JobScore>();
+  for (const s of store.scores) {
+    scoreMap.set(s.jobId, s);
+  }
+
   const enrichedJobs = jobs.map((j) => ({
     ...j,
-    score: store.scores.find((s) => s.jobId === j.id),
+    score: scoreMap.get(j.id),
   }));
 
   if (filters?.minScore !== undefined) {
@@ -321,8 +299,50 @@ export async function addJobs(newJobs: Partial<Job>[]): Promise<Job[]> {
   const store = await loadLocalStore();
   const added: Job[] = [];
 
+  // ⚡ Bolt Optimization: Pre-compute uniqueness Sets for O(1) deduplication checks
+  // Reduces addJobs complexity from O(n^2) to O(n) while processing new batches
+  const existingExternalIds = new Set<string>();
+  const existingUrls = new Set<string>();
+  const existingFingerprints = new Set<string>();
+
+  for (const existing of store.jobs) {
+    const extId = normalizeIdentity(existing.externalId);
+    if (extId) existingExternalIds.add(extId);
+
+    const url = normalizeIdentity(existing.url);
+    if (url) existingUrls.add(url);
+
+    const fingerprint = [
+      normalizeIdentity(existing.source),
+      normalizeIdentity(existing.title),
+      normalizeIdentity(existing.company),
+      normalizeIdentity(existing.location),
+    ].join("|");
+    if (fingerprint !== "|||") existingFingerprints.add(fingerprint);
+  }
+
   for (const j of newJobs) {
-    if (store.jobs.some((existing) => sameJobIdentity(existing, j))) continue;
+    const extId = normalizeIdentity(j.externalId);
+    const url = normalizeIdentity(j.url);
+    const fingerprint = [
+      normalizeIdentity(j.source),
+      normalizeIdentity(j.title),
+      normalizeIdentity(j.company),
+      normalizeIdentity(j.location),
+    ].join("|");
+
+    if (
+      (extId && existingExternalIds.has(extId)) ||
+      (url && existingUrls.has(url)) ||
+      (fingerprint !== "|||" && existingFingerprints.has(fingerprint))
+    ) {
+      continue;
+    }
+
+    if (extId) existingExternalIds.add(extId);
+    if (url) existingUrls.add(url);
+    if (fingerprint !== "|||") existingFingerprints.add(fingerprint);
+
     const job: Job = {
       id: j.id || crypto.randomUUID(),
       externalId: j.externalId,
@@ -443,6 +463,19 @@ export async function getApplications(): Promise<Application[]> {
   }
 
   const store = await loadLocalStore();
+
+  // ⚡ Bolt Optimization: Use Maps for O(1) relation lookups instead of O(n) array.find() inside map()
+  // Reduces getApplications complexity from O(n^2) to O(n)
+  const jobMap = new Map<string, Job>();
+  for (const j of store.jobs) {
+    jobMap.set(j.id, j);
+  }
+
+  const resumeMap = new Map<string, TailoredResume>();
+  for (const r of store.resumes) {
+    resumeMap.set(r.id, r);
+  }
+
   return [...store.applications]
     .sort((a, b) => {
       const aTime = a.appliedAt ? new Date(a.appliedAt).getTime() : 0;
@@ -451,8 +484,8 @@ export async function getApplications(): Promise<Application[]> {
     })
     .map((application) => ({
       ...application,
-      job: store.jobs.find((job) => job.id === application.jobId),
-      resume: store.resumes.find((resume) => resume.id === application.resumeId),
+      job: jobMap.get(application.jobId),
+      resume: resumeMap.get(application.resumeId),
     }));
 }
 

@@ -1,0 +1,3 @@
+## 2024-06-27 - Optimizing local store O(n^2) bottlenecks
+**Learning:** Found an O(n²) performance bottleneck in `src/lib/store.ts` when working with the JSON local store. Lookups using `Array.prototype.find()` inside loops and `.some()` deduplication inside loops (`getJobs`, `getApplications`, `addJobs`) caused significant slowdowns as the local store grew.
+**Action:** Replaced iterative array methods within loops with `Map` (for relational lookups like scores/jobs/resumes) and `Set` (for uniqueness checks on identifiers and fingerprints). These changes reduced the complexity to O(n) and dynamically update the set structures to prevent duplicates within single batches.
