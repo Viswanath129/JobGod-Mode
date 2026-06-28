@@ -1,0 +1,3 @@
+## 2024-05-24 - O(n^2) Bottleneck in addJobs
+**Learning:** `addJobs` in `src/lib/store.ts` checks for duplicate jobs by iterating over all existing jobs for each new job using `store.jobs.some((existing) => sameJobIdentity(existing, j))`. This results in an O(N²) time complexity when adding a batch of jobs.
+**Action:** Use `Set` data structures for `externalId`, `url`, and a combination of `source|title|company|location` (`fingerprint`) to perform O(1) lookups. Populate these sets with existing jobs once (O(N)), and then check new jobs against these sets in O(1) time. Dynamically update the sets during the batch operation to prevent duplicates within the batch itself.
