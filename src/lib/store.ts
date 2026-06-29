@@ -96,34 +96,6 @@ function normalizeIdentity(value?: string | null): string {
   return (value || "").trim().toLowerCase();
 }
 
-function sameJobIdentity(a: Partial<Job>, b: Partial<Job>): boolean {
-  const aExternalId = normalizeIdentity(a.externalId);
-  const bExternalId = normalizeIdentity(b.externalId);
-  if (aExternalId && bExternalId && aExternalId === bExternalId) {
-    return true;
-  }
-
-  const aUrl = normalizeIdentity(a.url);
-  const bUrl = normalizeIdentity(b.url);
-  if (aUrl && bUrl && aUrl === bUrl) {
-    return true;
-  }
-
-  const aFingerprint = [
-    normalizeIdentity(a.source),
-    normalizeIdentity(a.title),
-    normalizeIdentity(a.company),
-    normalizeIdentity(a.location),
-  ].join("|");
-  const bFingerprint = [
-    normalizeIdentity(b.source),
-    normalizeIdentity(b.title),
-    normalizeIdentity(b.company),
-    normalizeIdentity(b.location),
-  ].join("|");
-
-  return aFingerprint === bFingerprint && aFingerprint !== "|||";
-}
 
 async function loadLocalStore(): Promise<Store> {
   try {
@@ -321,8 +293,41 @@ export async function addJobs(newJobs: Partial<Job>[]): Promise<Job[]> {
   const store = await loadLocalStore();
   const added: Job[] = [];
 
+  // ⚡ Bolt: Optimize O(n^2) duplicate checks to O(n)
+  // Replaces slow `some(sameJobIdentity)` with O(1) Set lookups
+  // Reduces main thread blocking during large sync operations
+  const externalIds = new Set(store.jobs.map(j => normalizeIdentity(j.externalId)).filter(Boolean));
+  const urls = new Set(store.jobs.map(j => normalizeIdentity(j.url)).filter(Boolean));
+  const fingerprints = new Set(store.jobs.map(j => [
+    normalizeIdentity(j.source),
+    normalizeIdentity(j.title),
+    normalizeIdentity(j.company),
+    normalizeIdentity(j.location),
+  ].join("|")).filter(f => f !== "|||"));
+
   for (const j of newJobs) {
-    if (store.jobs.some((existing) => sameJobIdentity(existing, j))) continue;
+    const jExtId = normalizeIdentity(j.externalId);
+    const jUrl = normalizeIdentity(j.url);
+    const jFingerprint = [
+      normalizeIdentity(j.source),
+      normalizeIdentity(j.title),
+      normalizeIdentity(j.company),
+      normalizeIdentity(j.location),
+    ].join("|");
+
+    if (
+      (jExtId && externalIds.has(jExtId)) ||
+      (jUrl && urls.has(jUrl)) ||
+      (jFingerprint !== "|||" && fingerprints.has(jFingerprint))
+    ) {
+      continue;
+    }
+
+    // Update sets to prevent duplicates within the incoming batch itself
+    if (jExtId) externalIds.add(jExtId);
+    if (jUrl) urls.add(jUrl);
+    if (jFingerprint !== "|||") fingerprints.add(jFingerprint);
+
     const job: Job = {
       id: j.id || crypto.randomUUID(),
       externalId: j.externalId,
