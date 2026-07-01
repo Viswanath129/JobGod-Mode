@@ -96,33 +96,13 @@ function normalizeIdentity(value?: string | null): string {
   return (value || "").trim().toLowerCase();
 }
 
-function sameJobIdentity(a: Partial<Job>, b: Partial<Job>): boolean {
-  const aExternalId = normalizeIdentity(a.externalId);
-  const bExternalId = normalizeIdentity(b.externalId);
-  if (aExternalId && bExternalId && aExternalId === bExternalId) {
-    return true;
-  }
-
-  const aUrl = normalizeIdentity(a.url);
-  const bUrl = normalizeIdentity(b.url);
-  if (aUrl && bUrl && aUrl === bUrl) {
-    return true;
-  }
-
-  const aFingerprint = [
-    normalizeIdentity(a.source),
-    normalizeIdentity(a.title),
-    normalizeIdentity(a.company),
-    normalizeIdentity(a.location),
+function getJobFingerprint(job: Partial<Job>): string {
+  return [
+    normalizeIdentity(job.source),
+    normalizeIdentity(job.title),
+    normalizeIdentity(job.company),
+    normalizeIdentity(job.location),
   ].join("|");
-  const bFingerprint = [
-    normalizeIdentity(b.source),
-    normalizeIdentity(b.title),
-    normalizeIdentity(b.company),
-    normalizeIdentity(b.location),
-  ].join("|");
-
-  return aFingerprint === bFingerprint && aFingerprint !== "|||";
 }
 
 async function loadLocalStore(): Promise<Store> {
@@ -321,8 +301,40 @@ export async function addJobs(newJobs: Partial<Job>[]): Promise<Job[]> {
   const store = await loadLocalStore();
   const added: Job[] = [];
 
+  // Bolt Optimization: Pre-calculate sets for O(1) duplicate checks instead of O(N^2) `.some()` iteration
+  // Impact: Reduces complexity of batch insert from O(N * M) to O(N + M)
+  const existingExternalIds = new Set<string>();
+  const existingUrls = new Set<string>();
+  const existingFingerprints = new Set<string>();
+
+  for (const job of store.jobs) {
+    const extId = normalizeIdentity(job.externalId);
+    if (extId) existingExternalIds.add(extId);
+
+    const url = normalizeIdentity(job.url);
+    if (url) existingUrls.add(url);
+
+    const fingerprint = getJobFingerprint(job);
+    if (fingerprint !== "|||") existingFingerprints.add(fingerprint);
+  }
+
   for (const j of newJobs) {
-    if (store.jobs.some((existing) => sameJobIdentity(existing, j))) continue;
+    const jExternalId = normalizeIdentity(j.externalId);
+    const jUrl = normalizeIdentity(j.url);
+    const jFingerprint = getJobFingerprint(j);
+
+    if (
+      (jExternalId && existingExternalIds.has(jExternalId)) ||
+      (jUrl && existingUrls.has(jUrl)) ||
+      (jFingerprint !== "|||" && existingFingerprints.has(jFingerprint))
+    ) {
+      continue;
+    }
+
+    if (jExternalId) existingExternalIds.add(jExternalId);
+    if (jUrl) existingUrls.add(jUrl);
+    if (jFingerprint !== "|||") existingFingerprints.add(jFingerprint);
+
     const job: Job = {
       id: j.id || crypto.randomUUID(),
       externalId: j.externalId,
