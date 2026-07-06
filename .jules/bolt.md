@@ -1,0 +1,3 @@
+## 2024-07-06 - Batch Insert Deduplication Bottlenecks
+**Learning:** Checking for duplicates using `Array.prototype.some` inside a loop comparing properties (like `sameJobIdentity`) against an entire loaded JSON-based store becomes an $O(N \times M)$ bottleneck where N is the new jobs and M is the existing store.
+**Action:** When handling batch updates against local stores, pre-compute searchable fields (like URL, external ID, and composite fingerprints) into O(1) structures like `Set` or `Map`, and dynamically update those structures while iterating through the batch to handle in-batch duplicates without re-evaluating the whole collection.
