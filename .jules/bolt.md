@@ -1,0 +1,3 @@
+## 2024-07-07 - O(N²) Array Traversal on Local JSON Database Fallback
+**Learning:** The application uses a local in-memory array representation (backed by `data/store.json`) when Supabase is unavailable. Repeated duplicate uniqueness checks (`sameJobIdentity`) inside `Array.some()` during batch additions (`addJobs`) created a significant O(M*N) bottleneck on the main thread for large datasets.
+**Action:** When performing bulk relational operations or duplicate checks on the local store fallback arrays, always use `Map` or `Set` structures for O(1) lookups, ensuring they are dynamically updated during batch iteration to prevent intra-batch duplicates.
