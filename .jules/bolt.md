@@ -1,0 +1,3 @@
+## 2024-07-08 - O(1) duplicate checks in local store
+**Learning:** During batched local DB operations without real constraints (like unique indexes in SQL), an O(n²) bottleneck occurs when checking each incoming item against both the existing database *and* previously processed items in the batch using array loops (e.g. `some()`).
+**Action:** Always extract duplicate identification metrics (like external IDs and composite fingerprints) into O(1) Set or Map structures upfront, and ensure these structures are dynamically updated within the loop during batch insertions to natively handle duplicates in the batch itself.
