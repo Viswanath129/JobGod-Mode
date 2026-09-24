@@ -1,6 +1,6 @@
 "use client";
 
-import { Trophy, DollarSign, Building2, Calendar, ArrowUpRight } from "lucide-react";
+import { Trophy } from "lucide-react";
 
 export default function OffersPage() {
   return (
