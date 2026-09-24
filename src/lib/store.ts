@@ -571,3 +571,17 @@ export async function getAnalyticsSnapshot(): Promise<AnalyticsSnapshot> {
     recentLogs: await getRecentLogs(),
   };
 }
+
+export async function deleteJob(id: string): Promise<boolean> {
+  if (supabase) {
+    await supabase.from("jobs").delete().eq("id", id);
+  }
+  const store = await loadLocalStore();
+  const initialLength = store.jobs.length;
+  store.jobs = store.jobs.filter((j) => j.id !== id);
+  if (store.jobs.length < initialLength) {
+    await saveLocalStore(store);
+    return true;
+  }
+  return false;
+}

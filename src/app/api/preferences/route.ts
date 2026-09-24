@@ -6,7 +6,7 @@ import { getPreferences, updatePreferences } from "@/lib/store";
 export async function GET() {
   try {
     return NextResponse.json(await getPreferences());
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: "Failed to fetch preferences" }, { status: 500 });
   }
 }
@@ -16,7 +16,7 @@ export async function PUT(req: NextRequest) {
     const body = await req.json();
     const updated = await updatePreferences(body);
     return NextResponse.json(updated);
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: "Failed to update preferences" }, { status: 500 });
   }
 }
