@@ -98,6 +98,8 @@ export class AutoApplyAgent {
   }
 
   private async fillForm(page: Page, _resume: string): Promise<boolean> {
+    console.log("Resume length:", _resume.length);
+
     // 1. Detect all inputs and their labels
     const fields = await page.evaluate<FormField[]>(() => {
       const inputs = Array.from(document.querySelectorAll("input, textarea, select"));

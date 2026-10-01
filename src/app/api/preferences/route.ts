@@ -7,6 +7,7 @@ export async function GET() {
   try {
     return NextResponse.json(await getPreferences());
   } catch (error) {
+    console.error(error);
     return NextResponse.json({ error: "Failed to fetch preferences" }, { status: 500 });
   }
 }
@@ -17,6 +18,7 @@ export async function PUT(req: NextRequest) {
     const updated = await updatePreferences(body);
     return NextResponse.json(updated);
   } catch (error) {
+    console.error(error);
     return NextResponse.json({ error: "Failed to update preferences" }, { status: 500 });
   }
 }
