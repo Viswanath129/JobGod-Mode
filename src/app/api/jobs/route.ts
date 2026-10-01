@@ -16,6 +16,7 @@ export async function GET(req: NextRequest) {
     });
     return NextResponse.json({ jobs, total: jobs.length });
   } catch (error) {
+    console.error(error);
     return NextResponse.json({ error: "Failed to fetch jobs" }, { status: 500 });
   }
 }
@@ -26,6 +27,7 @@ export async function POST(req: NextRequest) {
     const newJobs = await addJobs(Array.isArray(body) ? body : [body]);
     return NextResponse.json({ added: newJobs.length, jobs: newJobs });
   } catch (error) {
+    console.error(error);
     return NextResponse.json({ error: "Failed to add jobs" }, { status: 500 });
   }
 }

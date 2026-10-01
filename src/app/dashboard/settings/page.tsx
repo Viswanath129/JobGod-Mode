@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Settings as SettingsIcon, Save, MapPin, DollarSign, Briefcase, Code, Building2, Shield, Bell } from "lucide-react";
+import { Save, MapPin, DollarSign, Code, Shield, RotateCcw } from "lucide-react";
 import type { UserPreferences } from "@/types";
 
 export default function SettingsPage() {
   const [prefs, setPrefs] = useState<UserPreferences | null>(null);
   const [saving, setSaving] = useState(false);
+  const [resetting, setResetting] = useState(false);
 
   useEffect(() => {
     fetch("/api/preferences").then((r) => r.json()).then(setPrefs);
@@ -23,6 +24,31 @@ export default function SettingsPage() {
     setSaving(false);
   };
 
+  const reset = () => {
+    setResetting(true);
+    const defaultPrefs: UserPreferences = {
+      preferredLocations: ["Remote"],
+      blockedLocations: [],
+      techStack: [],
+      minSalary: 0,
+      maxSalary: 0,
+      salaryCurrency: "USD",
+      autoApplyEnabled: false,
+      autoApplyThreshold: 85,
+      workModes: ["Remote"],
+      industries: [],
+      experienceLevel: "Mid-Level",
+      shiftPreferences: ["Day"],
+      likedCompanies: [],
+      dislikedCompanies: [],
+      relocationCountries: [],
+      dailyScanEnabled: false,
+    };
+
+    setPrefs(defaultPrefs);
+    setResetting(false);
+  };
+
   if (!prefs) return <div style={{ color: "#5a5a6e", padding: "40px" }}>Loading...</div>;
 
   return (
@@ -34,10 +60,16 @@ export default function SettingsPage() {
           </h1>
           <p style={{ color: "#8a8a9a", fontSize: "14px" }}>Configure your AI agent&apos;s memory and behavior.</p>
         </div>
-        <button className="btn-primary" onClick={save} disabled={saving}>
-          <Save size={16} />
-          {saving ? "Saving..." : "Save Changes"}
-        </button>
+        <div style={{ display: "flex", gap: "10px" }}>
+          <button className="btn-secondary" onClick={reset} disabled={resetting || saving} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 16px", borderRadius: "10px", border: "1px solid var(--color-border-default)", background: "transparent", color: "#f0f0f5", cursor: "pointer" }}>
+            <RotateCcw size={16} />
+            {resetting ? "Resetting..." : "Reset"}
+          </button>
+          <button className="btn-primary" onClick={save} disabled={saving}>
+            <Save size={16} />
+            {saving ? "Saving..." : "Save Changes"}
+          </button>
+        </div>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>

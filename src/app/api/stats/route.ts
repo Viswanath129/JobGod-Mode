@@ -7,6 +7,7 @@ export async function GET() {
     const stats = await getStats();
     return NextResponse.json(stats);
   } catch (error) {
+    console.error(error);
     return NextResponse.json(
       { error: "Failed to fetch stats" },
       { status: 500 }
