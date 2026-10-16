@@ -33,7 +33,7 @@ export class AutoApplyAgent {
       });
 
       // 1. Generate Tailored Resume
-      const tailoredResume = await generateTailoredResume(this.job, this.user.resumeMd);
+      await generateTailoredResume(this.job, this.user.resumeMd);
       
       // 2. Perform application with Playwright
       browser = await chromium.launch({ 
@@ -55,7 +55,7 @@ export class AutoApplyAgent {
       await page.goto(targetUrl, { waitUntil: "networkidle", timeout: 60000 });
 
       // 3. Autonomous Form Filling
-      const success = await this.fillForm(page, tailoredResume);
+      const success = await this.fillForm(page);
 
       if (success) {
         const appliedAt = new Date().toISOString();
@@ -97,7 +97,7 @@ export class AutoApplyAgent {
     }
   }
 
-  private async fillForm(page: Page, _resume: string): Promise<boolean> {
+  private async fillForm(page: Page,): Promise<boolean> {
     // 1. Detect all inputs and their labels
     const fields = await page.evaluate<FormField[]>(() => {
       const inputs = Array.from(document.querySelectorAll("input, textarea, select"));
