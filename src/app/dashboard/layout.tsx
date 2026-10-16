@@ -2,14 +2,17 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import {
   LayoutDashboard,
+  Moon,
+  Sun,
   Search,
   Send,
   FileText,
   BarChart3,
   Settings,
-  Briefcase,
+
   Trophy,
   Brain,
   Zap,
@@ -32,9 +35,23 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const [theme, setTheme] = useState("dark");
+
+  useEffect(() => {
+    const savedTheme = localStorage.getItem("theme") || "dark";
+    setTheme(savedTheme);
+    document.documentElement.setAttribute("data-theme", savedTheme);
+  }, []);
+
+  const toggleTheme = () => {
+    const newTheme = theme === "dark" ? "light" : "dark";
+    setTheme(newTheme);
+    localStorage.setItem("theme", newTheme);
+    document.documentElement.setAttribute("data-theme", newTheme);
+  };
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", background: "#0a0a0f" }}>
+    <div style={{ display: "flex", minHeight: "100vh", background: "var(--color-bg-primary)" }}>
       {/* Sidebar */}
       <aside className="sidebar">
         {/* Logo */}
@@ -155,6 +172,28 @@ export default function DashboardLayout({
               </div>
             </div>
           </div>
+          <button
+            onClick={toggleTheme}
+            style={{
+              marginTop: "12px",
+              width: "100%",
+              padding: "8px",
+              borderRadius: "8px",
+              background: "var(--color-bg-card)",
+              border: "1px solid var(--color-border-default)",
+              color: "var(--color-text-primary)",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "8px",
+              fontSize: "13px",
+              fontWeight: 600,
+            }}
+          >
+            {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+            {theme === "dark" ? "Light Mode" : "Dark Mode"}
+          </button>
         </div>
       </aside>
 
