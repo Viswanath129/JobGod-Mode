@@ -183,7 +183,7 @@ export async function aiJSON<T>(systemPrompt: string, userPrompt: string): Promi
   }
 }
 
-import { Job, JobScore, UserProfile, TailoredResume } from "@/types";
+import { Job, JobScore, UserProfile } from "@/types";
 
 /**
  * AI Scoring Engine — Ranks a job against the user profile

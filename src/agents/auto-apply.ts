@@ -97,8 +97,10 @@ export class AutoApplyAgent {
     }
   }
 
-  private async fillForm(page: Page, _resume: string): Promise<boolean> {
+  private async fillForm(page: Page, resume: string): Promise<boolean> {
     // 1. Detect all inputs and their labels
+    // We will use the resume to generate mapping
+    console.log("Using resume of length", resume.length, "to fill form");
     const fields = await page.evaluate<FormField[]>(() => {
       const inputs = Array.from(document.querySelectorAll("input, textarea, select"));
       return inputs.map((input) => {
