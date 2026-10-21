@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Settings as SettingsIcon, Save, MapPin, DollarSign, Briefcase, Code, Building2, Shield, Bell } from "lucide-react";
+import { Save, MapPin, DollarSign, Code, Shield, Download } from "lucide-react";
 import type { UserPreferences } from "@/types";
 
 export default function SettingsPage() {
   const [prefs, setPrefs] = useState<UserPreferences | null>(null);
   const [saving, setSaving] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     fetch("/api/preferences").then((r) => r.json()).then(setPrefs);
@@ -23,6 +24,28 @@ export default function SettingsPage() {
     setSaving(false);
   };
 
+  const exportData = async () => {
+    setExporting(true);
+    try {
+      const response = await fetch("/api/preferences");
+      const data = await response.json();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "jobgod-preferences.json";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Export failed", error);
+      alert("Failed to export data");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   if (!prefs) return <div style={{ color: "#5a5a6e", padding: "40px" }}>Loading...</div>;
 
   return (
@@ -34,10 +57,21 @@ export default function SettingsPage() {
           </h1>
           <p style={{ color: "#8a8a9a", fontSize: "14px" }}>Configure your AI agent&apos;s memory and behavior.</p>
         </div>
-        <button className="btn-primary" onClick={save} disabled={saving}>
-          <Save size={16} />
-          {saving ? "Saving..." : "Save Changes"}
-        </button>
+        <div style={{ display: "flex", gap: "12px" }}>
+          <button
+            className="btn-ghost"
+            onClick={exportData}
+            disabled={exporting}
+            style={{ display: "flex", alignItems: "center", gap: "8px", padding: "10px 16px", background: "var(--color-bg-card)", border: "1px solid var(--color-border-default)", borderRadius: "12px", color: "#f0f0f5", cursor: "pointer" }}
+          >
+            <Download size={16} />
+            {exporting ? "Exporting..." : "Export Data"}
+          </button>
+          <button className="btn-primary" onClick={save} disabled={saving}>
+            <Save size={16} />
+            {saving ? "Saving..." : "Save Changes"}
+          </button>
+        </div>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
